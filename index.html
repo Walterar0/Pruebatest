@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Auth GIS y Publicación en Blogger</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script>
+    const CLIENT_ID = "338010031407-a0qku90nm9atgjsgirdg9i40av85ptbn.apps.googleusercontent.com";
+    const API_KEY = "AIzaSyBkROi9aAkTcWaZwMa05RG7dFPbwdrZIok";
+    const BLOG_ID = "6423620772115300042";
+    const SCOPES = "https://www.googleapis.com/auth/blogger";
+
+    // Callback para manejar la respuesta del token
+    function handleCredentialResponse(response) {
+      console.log("ID token: " + response.credential);
+      alert("Autenticación exitosa. ID token: " + response.credential);
+      initializeBloggerAPI();
+    }
+
+    window.onload = function () {
+      google.accounts.id.initialize({
+        client_id: CLIENT_ID,
+        callback: handleCredentialResponse,
+      });
+
+      google.accounts.id.renderButton(
+        document.getElementById("buttonDiv"),
+        { theme: "outline", size: "large" }
+      );
+
+      google.accounts.id.prompt();
+    };
+
+    function initializeBloggerAPI() {
+      gapi.load('client', () => {
+        gapi.client.init({
+          apiKey: API_KEY,
+          discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/blogger/v3/rest"]
+        }).then(() => {
+          document.getElementById('post-button').disabled = false;
+        }).catch(err => {
+          console.error("Error al inicializar Blogger API", err);
+        });
+      });
+    }
+
+    function makeApiCall() {
+      const postContent = {
+        kind: "blogger#post",
+        title: "Título del Blog desde JS",
+        content: "<p>Contenido del blog generado desde JavaScript</p>"
+      };
+
+      gapi.client.blogger.posts.insert({
+        blogId: BLOG_ID,
+        resource: postContent
+      }).then(response => {
+        alert("Entrada publicada con éxito: " + response.result.url);
+      }).catch(err => {
+        console.error("Error al publicar:", err);
+        alert("Error al publicar la entrada: " + err.result.error.message);
+      });
+    }
+  </script>
+</head>
+<body>
+  <h1>Autenticación con Google GIS y Publicación en Blogger</h1>
+  <div id="buttonDiv"></div>
+  <button id="post-button" disabled onclick="makeApiCall()">Publicar Blog</button>
+</body>
+</html>
