@@ -32,7 +32,7 @@
           document.getElementById('auth-button').disabled = false;
           logMessage("API inicializada correctamente");
         }).catch(error => {
-          logMessage("Error al inicializar API: " + error.message);
+          logMessage("Error al inicializar API: " + JSON.stringify(error));
         });
       });
     }
@@ -42,7 +42,7 @@
         updateSigninStatus(true);
         logMessage("Autenticación exitosa");
       }).catch(error => {
-        logMessage("Error en autenticación: " + error.message);
+        logMessage("Error en autenticación: " + JSON.stringify(error));
       });
     }
 
@@ -77,7 +77,7 @@
       }).then(response => {
         logMessage("Entrada publicada con éxito: " + response.result.url);
       }).catch(err => {
-        logMessage("Error al publicar la entrada: " + (err.result.error.message || err.message));
+        logMessage("Error al publicar la entrada: " + JSON.stringify(err));
       });
     }
   </script>
