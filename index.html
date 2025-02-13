@@ -4,14 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Google Auth y Publicación en Blogger</title>
-  <script src="https://apis.google.com/js/api.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     const CLIENT_ID = "338010031407-a0qku90nm9atgjsgirdg9i40av85ptbn.apps.googleusercontent.com";
     const API_KEY = "AIzaSyBkROi9aAkTcWaZwMa05RG7dFPbwdrZIok";
     const BLOG_ID = "6423620772115300042";
     const SCOPES = "https://www.googleapis.com/auth/blogger";
-
+    
     let accessToken = null;
+    let tokenClient;
 
     function logMessage(message) {
       document.getElementById('log').innerHTML += `<p>${message}</p>`;
@@ -19,39 +20,24 @@
     }
 
     function initClient() {
-      gapi.load('client:auth2', () => {
-        gapi.client.init({
-          apiKey: API_KEY,
-          clientId: CLIENT_ID,
-          discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/blogger/v3/rest"],
-          scope: SCOPES
-        }).then(() => {
-          if (gapi.auth2.getAuthInstance().isSignedIn.get()) {
-            updateSigninStatus(true);
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: (response) => {
+          if (response.error) {
+            logMessage("Error en autenticación: " + JSON.stringify(response));
+            return;
           }
-          document.getElementById('auth-button').disabled = false;
-          logMessage("API inicializada correctamente");
-        }).catch(error => {
-          logMessage("Error al inicializar API: " + JSON.stringify(error));
-        });
+          accessToken = response.access_token;
+          document.getElementById('post-button').disabled = false;
+          logMessage("Autenticación exitosa");
+        }
       });
+      document.getElementById('auth-button').disabled = false;
     }
 
     function handleAuthClick() {
-      gapi.auth2.getAuthInstance().signIn().then(user => {
-        updateSigninStatus(true);
-        logMessage("Autenticación exitosa");
-      }).catch(error => {
-        logMessage("Error en autenticación: " + JSON.stringify(error));
-      });
-    }
-
-    function updateSigninStatus(isSignedIn) {
-      if (isSignedIn) {
-        accessToken = gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse().access_token;
-        document.getElementById('post-button').disabled = false;
-        logMessage("Usuario autenticado correctamente");
-      }
+      tokenClient.requestAccessToken();
     }
 
     function makeApiCall() {
@@ -66,19 +52,23 @@
         content: "<p>Contenido del blog generado desde JavaScript</p>"
       };
 
-      gapi.client.request({
-        path: `/blogger/v3/blogs/${BLOG_ID}/posts`,
+      fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
         method: "POST",
-        body: postContent,
         headers: {
           "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json"
+        },
+        body: JSON.stringify(postContent)
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
+        } else {
+          logMessage("Entrada publicada con éxito: " + data.url);
         }
-      }).then(response => {
-        logMessage("Entrada publicada con éxito: " + response.result.url);
-      }).catch(err => {
-        logMessage("Error al publicar la entrada: " + JSON.stringify(err));
-      });
+      })
+      .catch(err => logMessage("Error en la solicitud: " + err.message));
     }
   </script>
 </head>
