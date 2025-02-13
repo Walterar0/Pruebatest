@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Google Auth GIS y Publicación en Blogger</title>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <title>Google Auth y Publicación en Blogger</title>
   <script src="https://apis.google.com/js/api.js"></script>
   <script>
     const CLIENT_ID = "338010031407-a0qku90nm9atgjsgirdg9i40av85ptbn.apps.googleusercontent.com";
@@ -12,50 +11,53 @@
     const BLOG_ID = "6423620772115300042";
     const SCOPES = "https://www.googleapis.com/auth/blogger";
 
-    // Callback para manejar la respuesta del token
-    function handleCredentialResponse(response) {
-      console.log("ID token: " + response.credential);
-      alert("Autenticación exitosa. ID token: " + response.credential);
-      initializeBloggerAPI();
+    let accessToken = null; // Guardará el token de acceso
+
+    function handleAuthClick() {
+      gapi.auth2.getAuthInstance().signIn().then(user => {
+        accessToken = user.getAuthResponse().access_token;
+        alert("Autenticación exitosa.");
+        document.getElementById('post-button').disabled = false;
+      }).catch(error => {
+        console.error("Error en autenticación:", error);
+      });
     }
 
-    window.onload = function () {
-      google.accounts.id.initialize({
-        client_id: CLIENT_ID,
-        callback: handleCredentialResponse,
-      });
-
-      google.accounts.id.renderButton(
-        document.getElementById("buttonDiv"),
-        { theme: "outline", size: "large" }
-      );
-
-      google.accounts.id.prompt();
-    };
-
-    function initializeBloggerAPI() {
-      gapi.load('client', () => {
+    function initClient() {
+      gapi.load('client:auth2', () => {
         gapi.client.init({
           apiKey: API_KEY,
-          discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/blogger/v3/rest"]
+          clientId: CLIENT_ID,
+          discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/blogger/v3/rest"],
+          scope: SCOPES
         }).then(() => {
-          document.getElementById('post-button').disabled = false;
-        }).catch(err => {
-          console.error("Error al inicializar Blogger API", err);
+          document.getElementById('auth-button').disabled = false;
+        }).catch(error => {
+          console.error("Error al inicializar API:", error);
         });
       });
     }
 
     function makeApiCall() {
+      if (!accessToken) {
+        alert("Debes autenticarte primero.");
+        return;
+      }
+
       const postContent = {
         kind: "blogger#post",
         title: "Título del Blog desde JS",
         content: "<p>Contenido del blog generado desde JavaScript</p>"
       };
 
-      gapi.client.blogger.posts.insert({
-        blogId: BLOG_ID,
-        resource: postContent
+      gapi.client.request({
+        path: `/blogger/v3/blogs/${BLOG_ID}/posts`,
+        method: "POST",
+        body: postContent,
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        }
       }).then(response => {
         alert("Entrada publicada con éxito: " + response.result.url);
       }).catch(err => {
@@ -65,9 +67,9 @@
     }
   </script>
 </head>
-<body>
-  <h1>Autenticación con Google GIS y Publicación en Blogger</h1>
-  <div id="buttonDiv"></div>
+<body onload="initClient()">
+  <h1>Autenticación con Google OAuth y Publicación en Blogger</h1>
+  <button id="auth-button" onclick="handleAuthClick()">Iniciar sesión con Google</button>
   <button id="post-button" disabled onclick="makeApiCall()">Publicar Blog</button>
 </body>
 </html>
