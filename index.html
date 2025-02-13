@@ -46,10 +46,15 @@
         return;
       }
 
+      let publishDate = new Date("2024-02-14T10:00:00Z"); // 14 de febrero a las 10:00 AM UTC
+      let scheduledTime = publishDate.toISOString();
+
       const postContent = {
         kind: "blogger#post",
         title: "Título del Blog desde JS",
-        content: "<p>Contenido del blog generado desde JavaScript</p>"
+        content: "<p>Contenido del blog generado desde JavaScript</p><img src='https://via.placeholder.com/600x400' alt='Imagen de prueba' />",
+        published: scheduledTime,
+        labels: ["Tecnología", "Google API", "Blogger", "Autenticación"]
       };
 
       fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
@@ -65,7 +70,7 @@
         if (data.error) {
           logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
         } else {
-          logMessage("Entrada publicada con éxito: " + data.url);
+          logMessage("Entrada programada para publicación el 14 de febrero a las 10:00 AM con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
         }
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
