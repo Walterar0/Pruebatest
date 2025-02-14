@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Google Auth y Publicación en Blogger</title>
+  <title>Publicador de Blogger</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     const CLIENT_ID = "338010031407-a0qku90nm9atgjsgirdg9i40av85ptbn.apps.googleusercontent.com";
@@ -16,7 +16,7 @@
 
     function logMessage(message) {
       document.getElementById('log').innerHTML += `<p>${message}</p>`;
-      alert(message);
+      console.log(message);
     }
 
     function initClient() {
@@ -40,20 +40,26 @@
       tokenClient.requestAccessToken();
     }
 
-    function extractBlogDataFromHTML(html) {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      return {
-        title: doc.querySelector('h1') ? doc.querySelector('h1').textContent : "Título Desconocido",
-        content: doc.body.innerHTML
-      };
-    }
+    function extractData() {
+      let htmlContent = document.getElementById("html-input").value;
+      let textContent = document.getElementById("text-input").value;
+      let parser = new DOMParser();
+      let doc = parser.parseFromString(htmlContent, "text/html");
+      
+      let title = doc.querySelector("h1, h2, h3")?.textContent || "Sin título";
+      let content = doc.body.innerHTML;
+      let labels = [];
+      let publishDate = new Date().toISOString();
 
-    function extractBlogDataFromText(text) {
-      return {
-        title: text.split('\n')[0] || "Título Desconocido",
-        content: text
-      };
+      if (textContent.trim() !== "") {
+        title = textContent.split("\n")[0] || "Sin título";
+        content = `<p>${textContent.replace(/\n/g, "</p><p>")}</p>`;
+      }
+
+      document.getElementById("extracted-title").innerText = title;
+      document.getElementById("extracted-content").innerHTML = content;
+
+      return { title, content, publishDate, labels };
     }
 
     function makeApiCall() {
@@ -61,29 +67,14 @@
         logMessage("Debes autenticarte primero.");
         return;
       }
-      
-      let blogData;
-      const htmlInput = document.getElementById('html-input').value;
-      const textInput = document.getElementById('text-input').value;
-      
-      if (htmlInput) {
-        blogData = extractBlogDataFromHTML(htmlInput);
-      } else if (textInput) {
-        blogData = extractBlogDataFromText(textInput);
-      } else {
-        logMessage("No hay contenido para publicar.");
-        return;
-      }
 
-      let publishDate = new Date("2025-02-13T20:00:00Z"); // 13 de febrero de 2025 a las 8:00 PM UTC
-      let scheduledTime = publishDate.toISOString();
-
+      let { title, content, publishDate, labels } = extractData();
       const postContent = {
         kind: "blogger#post",
-        title: blogData.title,
-        content: blogData.content,
-        published: scheduledTime,
-        labels: ["Películas familiares", "Recomendaciones", "Streaming"]
+        title: title,
+        content: content,
+        published: publishDate,
+        labels: labels
       };
 
       fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
@@ -99,7 +90,7 @@
         if (data.error) {
           logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
         } else {
-          logMessage("Entrada programada para publicación con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
+          logMessage("Entrada publicada correctamente: " + data.url);
         }
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
@@ -107,15 +98,21 @@
   </script>
 </head>
 <body onload="initClient()">
-  <h1>Autenticación con Google OAuth y Publicación en Blogger</h1>
+  <h1>Publicador en Blogger</h1>
   <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
   <button id="post-button" disabled onclick="makeApiCall()">Publicar Blog</button>
-  
-  <h2>Ingresar HTML del blog</h2>
+
+  <h2>Ingrese HTML</h2>
   <textarea id="html-input" rows="10" cols="80"></textarea>
   
-  <h2>Ingresar Blog en Texto Plano</h2>
+  <h2>Ingrese texto plano</h2>
   <textarea id="text-input" rows="10" cols="80"></textarea>
+  
+  <button onclick="extractData()">Extraer Datos</button>
+  
+  <h3>Datos extraídos:</h3>
+  <p><strong>Título:</strong> <span id="extracted-title"></span></p>
+  <div id="extracted-content" style="border:1px solid #ccc; padding:10px;"></div>
   
   <div id="log" style="border: 1px solid #ccc; padding: 10px; margin-top: 10px;"><h3>Logs:</h3></div>
 </body>
