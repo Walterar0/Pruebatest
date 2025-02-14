@@ -16,7 +16,6 @@
 
     function logMessage(message) {
       document.getElementById('log').innerHTML += `<p>${message}</p>`;
-      console.log(message);
       alert(message);
     }
 
@@ -47,39 +46,39 @@
         return;
       }
 
-      let rawDate = document.getElementById("fecha").textContent;
-      let foundDate = true;
+      let publishDate = new Date("2025-02-13T21:30:00Z"); // 13 de febrero de 2025 a las 8:00 PM UTC
+      let scheduledTime = publishDate.toISOString();
 
-      if (!rawDate || rawDate === "No encontrado") {
-        logMessage("Fecha no encontrada, usando la actual.");
-        rawDate = new Date().toISOString();
-        foundDate = false;
-      }
-      
-      let localDate = new Date(rawDate);
-      if (isNaN(localDate.getTime())) {
-        logMessage("Error: La fecha obtenida no es válida. Usando la actual.");
-        localDate = new Date();
-      }
-      
-      // Fijar la hora deseada en la zona horaria local (UTC-5)
-      localDate.setHours(14, 0, 0, 0);
-      
-      // Convertir a UTC sumando 5 horas (Colombia está en UTC-5)
-      let utcDate = new Date(localDate.getTime() + (5 * 60 * 60 * 1000));
-      let scheduledTime = utcDate.toISOString();
-      
-      logMessage(`Fecha extraída: ${rawDate}`);
-      logMessage(`Fecha convertida a UTC: ${scheduledTime}`);
-      logMessage(foundDate ? "Fecha extraída correctamente." : "Se asignó una fecha por defecto.");
-      
       const postContent = {
         kind: "blogger#post",
-        title: document.getElementById("titulo").textContent || "Sin título",
-        content: document.getElementById("content").textContent || "Sin contenido",
-        labels: document.getElementById("etiquetas").textContent.split(", ") || [],
-        status: "SCHEDULED",
-        published: scheduledTime // Se fija la fecha correctamente en UTC
+        title: "Las mejores películas para ver en familia durante el fin de semana",
+        content: `
+          <p>Nada mejor que un fin de semana en casa disfrutando de buenas películas en familia. Desde comedias divertidas hasta conmovedoras historias llenas de valores, las plataformas de streaming ofrecen opciones para todas las edades. A continuación, te presentamos una selección de películas ideales para compartir con tus seres queridos.</p>
+          <h3>1. <em>Encanto</em> (Disney+)</h3>
+          <p>Una mágica historia sobre la familia Madrigal y sus increíbles dones. Con canciones inolvidables y una emotiva trama, es perfecta para ver con niños y adultos.</p>
+          <h3>2. <em>Paddington 2</em> (Prime Video)</h3>
+          <p>Las divertidas aventuras de un oso educado y bondadoso en Londres harán reír a toda la familia mientras transmiten un hermoso mensaje sobre la amabilidad.</p>
+          <h3>3. <em>Mi vecino Totoro</em> (Netflix)</h3>
+          <p>Un clásico del Studio Ghibli lleno de fantasía, ternura y conexión con la naturaleza que enamora a niños y adultos por igual.</p>
+          <h3>4. <em>La familia Mitchell vs. las máquinas</em> (Netflix)</h3>
+          <p>Una comedia animada repleta de acción, tecnología y un poderoso mensaje sobre la importancia de la unión familiar.</p>
+          <h3>5. <em>Coco</em> (Disney+)</h3>
+          <p>Esta joya de Pixar celebra la cultura mexicana y los lazos familiares de una manera emotiva y visualmente espectacular.</p>
+          <h3>¿Qué hace que una película sea perfecta para la familia?</h3>
+          <p>Las mejores películas familiares combinan entretenimiento, valores positivos y la capacidad de conectar con personas de diferentes edades. A menudo, incluyen temas de amistad, trabajo en equipo, amor y superación personal.</p>
+          <h3>Recomendaciones de imágenes para acompañar el artículo:</h3>
+          <ul>
+            <li>Familia reunida en el sofá viendo una película. (Palabras clave: "family movie night", "watching movies at home")</li>
+            <li>Personajes icónicos de películas familiares. (Palabras clave: "family-friendly movie characters", "animated film heroes")</li>
+            <li>Palomitas de maíz y control remoto en una mesa. (Palabras clave: "movie snacks", "home cinema setup")</li>
+          </ul>
+          <h3>Título sugerido para el artículo:</h3>
+          <p><strong>"Las mejores películas para disfrutar en familia durante el fin de semana"</strong></p>
+          <h3>Palabras clave:</h3>
+          <p>películas familiares recomendadas, cine para toda la familia, mejores películas para ver con niños, películas animadas populares, películas para disfrutar en casa, recomendaciones de cine familiar.</p>
+        `,
+        published: scheduledTime,
+        labels: ["Películas familiares", "Recomendaciones", "Streaming"]
       };
 
       fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
@@ -95,7 +94,7 @@
         if (data.error) {
           logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
         } else {
-          logMessage("Entrada programada correctamente para: " + scheduledTime + " - " + data.url);
+          logMessage("Entrada programada para publicación el 13 de febrero de 2025 a las 8:00 PM con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
         }
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
@@ -107,42 +106,5 @@
   <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
   <button id="post-button" disabled onclick="makeApiCall()">Publicar Blog</button>
   <div id="log" style="border: 1px solid #ccc; padding: 10px; margin-top: 10px;"><h3>Logs:</h3></div>
-  
-  <h2>Extraer Datos del Blog</h2>
-  <label for="htmlInput">Pegar HTML del Blog:</label><br>
-  <textarea id="htmlInput" rows="10" cols="80"></textarea><br>
-  <button onclick="extraerDatos()">Extraer Datos</button>
-
-  <h3>Resultados</h3>
-  <p><strong>Título:</strong> <span id="titulo"></span></p>
-  <p><strong>Fecha:</strong> <span id="fecha"></span></p>
-  <p><strong>Etiquetas:</strong> <span id="etiquetas"></span></p>
-  <p><strong>Contenido:</strong> <span id="content"></span></p>
-  
-  <script>
-    function extraerDatos() {
-      let htmlContent = document.getElementById("htmlInput").value;
-      
-      let regexTitle = /title:\s*"([^"]+)"/;
-      let regexDate = /let publishDate = new Date\("([^"]+)"\)/;
-      let regexLabels = /labels:\s*\[([^\]]+)\]/;
-      let regexContent = /content:\s*`([^`]*)`/;
-
-      let matchTitle = htmlContent.match(regexTitle);
-      let matchDate = htmlContent.match(regexDate);
-      let matchLabels = htmlContent.match(regexLabels);
-      let matchContent = htmlContent.match(regexContent);
-
-      let title = matchTitle ? matchTitle[1] : "No encontrado";
-      let date = matchDate ? matchDate[1] : "No encontrado";
-      let labels = matchLabels ? matchLabels[1].replace(/"/g, '') : "No encontrado";
-      let content = matchContent ? matchContent[1] : "No encontrado";
-
-      document.getElementById("titulo").textContent = title;
-      document.getElementById("fecha").textContent = date;
-      document.getElementById("etiquetas").textContent = labels;
-      document.getElementById("content").textContent = content;
-    }
-  </script>
 </body>
 </html>
