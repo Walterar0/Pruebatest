@@ -65,8 +65,8 @@
       // Fijar la hora deseada en la zona horaria local (UTC-5)
       localDate.setHours(14, 0, 0, 0);
       
-      // Convertir a UTC sumando 5 horas (Colombia está en UTC-5) y restando 5 horas adicionales
-      let utcDate = new Date(localDate.getTime());
+      // Convertir a UTC sumando 5 horas (Colombia está en UTC-5)
+      let utcDate = new Date(localDate.getTime() + (5 * 60 * 60 * 1000));
       let scheduledTime = utcDate.toISOString();
       
       logMessage(`Fecha extraída: ${rawDate}`);
@@ -78,7 +78,8 @@
         title: document.getElementById("titulo").textContent || "Sin título",
         content: document.getElementById("content").textContent || "Sin contenido",
         labels: document.getElementById("etiquetas").textContent.split(", ") || [],
-        status: "SCHEDULED"
+        status: "SCHEDULED",
+        published: scheduledTime // Se fija la fecha correctamente en UTC
       };
 
       fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
