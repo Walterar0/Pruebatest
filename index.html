@@ -16,7 +16,7 @@
 
     function logMessage(message) {
       document.getElementById('log').innerHTML += `<p>${message}</p>`;
-      alert(message);
+      console.log(message);
     }
 
     function initClient() {
@@ -46,23 +46,25 @@
         return;
       }
 
-      let publishDateStr = document.getElementById("fecha").textContent.trim();
-      let publishDate = new Date(publishDateStr);
-      
-      if (isNaN(publishDate)) {
-        logMessage("Error: Fecha no válida");
-        return;
+      let rawDate = document.getElementById("fecha").textContent;
+      if (!rawDate || rawDate === "No encontrado") {
+        logMessage("Fecha no encontrada, usando la actual.");
+        rawDate = new Date().toISOString();
       }
       
+      let publishDate = new Date(rawDate);
+      publishDate.setHours(publishDate.getHours() - 5); // Convertir de UTC a Colombia (UTC-5)
       let scheduledTime = publishDate.toISOString();
-
+      
+      logMessage("Fecha programada convertida: " + scheduledTime);
+      
       const postContent = {
         kind: "blogger#post",
         title: document.getElementById("titulo").textContent || "Sin título",
         content: document.getElementById("content").textContent || "Sin contenido",
+        labels: document.getElementById("etiquetas").textContent.split(", ") || [],
         status: "SCHEDULED",
-        scheduled: scheduledTime,
-        labels: document.getElementById("etiquetas").textContent.split(", ") || []
+        scheduled: scheduledTime
       };
 
       fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
@@ -78,7 +80,7 @@
         if (data.error) {
           logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
         } else {
-          logMessage("Entrada programada correctamente para: " + scheduledTime);
+          logMessage("Entrada programada correctamente para: " + scheduledTime + " - " + data.url);
         }
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
