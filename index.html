@@ -46,9 +46,11 @@
         return;
       }
 
-      let publishDate = new Date(document.getElementById("fecha").textContent);
-      publishDate.setHours(publishDate.getHours() - 13);
-      publishDate.setMinutes(publishDate.getMinutes() - 30);
+      let dateInput = document.getElementById("fecha").textContent;
+      let publishDate = new Date(dateInput);
+
+      // Ajustar horario para que coincida con Colombia (-5 UTC)
+      publishDate.setHours(publishDate.getHours() - 5);
       let scheduledTime = publishDate.toISOString();
 
       const postContent = {
@@ -72,7 +74,7 @@
         if (data.error) {
           logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
         } else {
-          logMessage("Entrada programada correctamente para: " + scheduledTime);
+          logMessage("Entrada programada para publicación con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
         }
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
@@ -101,7 +103,7 @@
       let htmlContent = document.getElementById("htmlInput").value;
       
       let regexTitle = /title:\s*"([^"]+)"/;
-      let regexDate = /Fecha:\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)/;
+      let regexDate = /let publishDate = new Date\("([^"]+)"\)/;
       let regexLabels = /labels:\s*\[([^\]]+)\]/;
       let regexContent = /content:\s*`([^`]*)`/;
 
