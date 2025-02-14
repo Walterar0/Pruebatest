@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Publicador de Blogger</title>
+  <title>Google Auth y Publicación en Blogger</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     const CLIENT_ID = "338010031407-a0qku90nm9atgjsgirdg9i40av85ptbn.apps.googleusercontent.com";
@@ -16,7 +16,7 @@
 
     function logMessage(message) {
       document.getElementById('log').innerHTML += `<p>${message}</p>`;
-      console.log(message);
+      alert(message);
     }
 
     function initClient() {
@@ -41,25 +41,28 @@
     }
 
     function extractData() {
-      let htmlContent = document.getElementById("html-input").value;
-      let textContent = document.getElementById("text-input").value;
-      let parser = new DOMParser();
-      let doc = parser.parseFromString(htmlContent, "text/html");
+      let htmlContent = document.getElementById("htmlInput").value;
+      let textContent = document.getElementById("textInput").value;
       
-      let title = doc.querySelector("h1, h2, h3")?.textContent || "Sin título";
-      let content = doc.body.innerHTML;
-      let labels = [];
-      let publishDate = new Date().toISOString();
+      let regexTitle = /title:\s*"([^"]+)"/;
+      let regexDate = /published:\s*"([^"]+)"/;
+      let regexLabels = /labels:\s*\[([^\]]+)\]/;
+      let regexContent = /content:\s*`([\s\S]+?)`/;
 
-      if (textContent.trim() !== "") {
-        title = textContent.split("\n")[0] || "Sin título";
-        content = `<p>${textContent.replace(/\n/g, "</p><p>")}</p>`;
-      }
+      let matchTitle = htmlContent.match(regexTitle) || textContent.match(regexTitle);
+      let matchDate = htmlContent.match(regexDate) || textContent.match(regexDate);
+      let matchLabels = htmlContent.match(regexLabels) || textContent.match(regexLabels);
+      let matchContent = htmlContent.match(regexContent) || textContent.match(regexContent);
 
-      document.getElementById("extracted-title").innerText = title;
-      document.getElementById("extracted-content").innerHTML = content;
+      let title = matchTitle ? matchTitle[1] : "No encontrado";
+      let publishDate = matchDate ? new Date(matchDate[1]).toISOString() : new Date().toISOString();
+      let labels = matchLabels ? matchLabels[1].replace(/"/g, '') : "No encontrado";
+      let content = matchContent ? matchContent[1] : "No encontrado";
 
-      return { title, content, publishDate, labels };
+      document.getElementById("titulo").textContent = title;
+      document.getElementById("fecha").textContent = publishDate;
+      document.getElementById("etiquetas").textContent = labels;
+      document.getElementById("contenido").textContent = content;
     }
 
     function makeApiCall() {
@@ -68,7 +71,11 @@
         return;
       }
 
-      let { title, content, publishDate, labels } = extractData();
+      let title = document.getElementById("titulo").textContent;
+      let publishDate = document.getElementById("fecha").textContent;
+      let labels = document.getElementById("etiquetas").textContent.split(', ');
+      let content = document.getElementById("contenido").textContent;
+
       const postContent = {
         kind: "blogger#post",
         title: title,
@@ -90,7 +97,7 @@
         if (data.error) {
           logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
         } else {
-          logMessage("Entrada publicada correctamente: " + data.url);
+          logMessage("Entrada publicada con éxito: " + data.url);
         }
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
@@ -98,22 +105,25 @@
   </script>
 </head>
 <body onload="initClient()">
-  <h1>Publicador en Blogger</h1>
+  <h1>Autenticación con Google OAuth y Publicación en Blogger</h1>
   <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
   <button id="post-button" disabled onclick="makeApiCall()">Publicar Blog</button>
 
-  <h2>Ingrese HTML</h2>
-  <textarea id="html-input" rows="10" cols="80"></textarea>
-  
-  <h2>Ingrese texto plano</h2>
-  <textarea id="text-input" rows="10" cols="80"></textarea>
-  
+  <h2>Extraer Datos del Blog</h2>
+  <label for="htmlInput">Pegar HTML del Blog:</label><br>
+  <textarea id="htmlInput" rows="10" cols="80"></textarea><br>
+
+  <label for="textInput">Pegar Blog en Texto Plano:</label><br>
+  <textarea id="textInput" rows="10" cols="80"></textarea><br>
+
   <button onclick="extractData()">Extraer Datos</button>
-  
-  <h3>Datos extraídos:</h3>
-  <p><strong>Título:</strong> <span id="extracted-title"></span></p>
-  <div id="extracted-content" style="border:1px solid #ccc; padding:10px;"></div>
-  
+
+  <h3>Resultados</h3>
+  <p><strong>Título:</strong> <span id="titulo"></span></p>
+  <p><strong>Fecha:</strong> <span id="fecha"></span></p>
+  <p><strong>Etiquetas:</strong> <span id="etiquetas"></span></p>
+  <p><strong>Contenido:</strong> <span id="contenido"></span></p>
+
   <div id="log" style="border: 1px solid #ccc; padding: 10px; margin-top: 10px;"><h3>Logs:</h3></div>
 </body>
 </html>
