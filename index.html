@@ -57,11 +57,11 @@
         title: document.getElementById("titulo").textContent || "Sin título",
         content: document.getElementById("content").textContent || "Sin contenido",
         labels: document.getElementById("etiquetas").textContent.split(", ") || [],
-        status: "SCHEDULED",
-        scheduled: scheduledTime
+        status: "SCHEDULED", // Se asegura que el estado sea programado
+        published: scheduledTime // Fecha extraída del HTML correctamente
       };
 
-      fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
+      fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts/`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -79,26 +79,7 @@
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
     }
-  </script>
-</head>
-<body onload="initClient()">
-  <h1>Autenticación con Google OAuth y Publicación en Blogger</h1>
-  <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
-  <button id="post-button" disabled onclick="makeApiCall()">Publicar Blog</button>
-  <div id="log" style="border: 1px solid #ccc; padding: 10px; margin-top: 10px;"><h3>Logs:</h3></div>
-  
-  <h2>Extraer Datos del Blog</h2>
-  <label for="htmlInput">Pegar HTML del Blog:</label><br>
-  <textarea id="htmlInput" rows="10" cols="80"></textarea><br>
-  <button onclick="extraerDatos()">Extraer Datos</button>
 
-  <h3>Resultados</h3>
-  <p><strong>Título:</strong> <span id="titulo"></span></p>
-  <p><strong>Fecha:</strong> <span id="fecha"></span></p>
-  <p><strong>Etiquetas:</strong> <span id="etiquetas"></span></p>
-  <p><strong>Contenido:</strong> <span id="content"></span></p>
-  
-  <script>
     function extraerDatos() {
       let htmlContent = document.getElementById("htmlInput").value;
       
@@ -123,5 +104,22 @@
       document.getElementById("content").textContent = content;
     }
   </script>
+</head>
+<body onload="initClient()">
+  <h1>Autenticación con Google OAuth y Publicación en Blogger</h1>
+  <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
+  <button id="post-button" disabled onclick="makeApiCall()">Publicar Blog</button>
+  <div id="log" style="border: 1px solid #ccc; padding: 10px; margin-top: 10px;"><h3>Logs:</h3></div>
+  
+  <h2>Extraer Datos del Blog</h2>
+  <label for="htmlInput">Pegar HTML del Blog:</label><br>
+  <textarea id="htmlInput" rows="10" cols="80"></textarea><br>
+  <button onclick="extraerDatos()">Extraer Datos</button>
+
+  <h3>Resultados</h3>
+  <p><strong>Título:</strong> <span id="titulo"></span></p>
+  <p><strong>Fecha:</strong> <span id="fecha"></span></p>
+  <p><strong>Etiquetas:</strong> <span id="etiquetas"></span></p>
+  <p><strong>Contenido:</strong> <span id="content"></span></p>
 </body>
 </html>
