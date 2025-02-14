@@ -46,8 +46,11 @@
         return;
       }
 
-      let publishDate = new Date("2025-02-13T20:00:00Z");
-      let scheduledTime = publishDate.toISOString();
+      let scheduledTime = document.getElementById("fecha").textContent;
+      if (!scheduledTime || scheduledTime === "No encontrado") {
+        logMessage("No se encontró la fecha de publicación en el HTML.");
+        return;
+      }
 
       const postContent = {
         kind: "blogger#post",
@@ -55,7 +58,7 @@
         content: document.getElementById("content").textContent || "Sin contenido",
         labels: document.getElementById("etiquetas").textContent.split(", ") || [],
         status: "SCHEDULED",
-        published: scheduledTime
+        scheduled: scheduledTime
       };
 
       fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
@@ -71,7 +74,7 @@
         if (data.error) {
           logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
         } else {
-          logMessage("Entrada programada para publicación el 13 de febrero de 2025 a las 8:00 PM con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
+          logMessage("Entrada programada para publicación en: " + scheduledTime + " con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
         }
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
@@ -110,7 +113,7 @@
       let matchContent = htmlContent.match(regexContent);
 
       let title = matchTitle ? matchTitle[1] : "No encontrado";
-      let date = matchDate ? matchDate[1] : "No encontrado";
+      let date = matchDate ? new Date(matchDate[1]).toISOString() : "No encontrado";
       let labels = matchLabels ? matchLabels[1].replace(/"/g, '') : "No encontrado";
       let content = matchContent ? matchContent[1] : "No encontrado";
 
