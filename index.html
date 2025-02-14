@@ -17,6 +17,7 @@
     function logMessage(message) {
       document.getElementById('log').innerHTML += `<p>${message}</p>`;
       console.log(message);
+      alert(message);
     }
 
     function initClient() {
@@ -47,16 +48,26 @@
       }
 
       let rawDate = document.getElementById("fecha").textContent;
+      let foundDate = true;
+
       if (!rawDate || rawDate === "No encontrado") {
         logMessage("Fecha no encontrada, usando la actual.");
         rawDate = new Date().toISOString();
+        foundDate = false;
       }
       
       let publishDate = new Date(rawDate);
+      if (isNaN(publishDate.getTime())) {
+        logMessage("Error: La fecha obtenida no es válida. Usando la actual.");
+        publishDate = new Date();
+      }
+      
       publishDate.setHours(publishDate.getHours() - 5); // Convertir de UTC a Colombia (UTC-5)
       let scheduledTime = publishDate.toISOString();
       
-      logMessage("Fecha programada convertida: " + scheduledTime);
+      logMessage(`Fecha extraída: ${rawDate}`);
+      logMessage(`Fecha convertida: ${scheduledTime}`);
+      logMessage(foundDate ? "Fecha extraída correctamente." : "Se asignó una fecha por defecto.");
       
       const postContent = {
         kind: "blogger#post",
