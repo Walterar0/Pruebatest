@@ -31,6 +31,7 @@
           accessToken = response.access_token;
           document.getElementById('post-button').disabled = false;
           document.getElementById('fetch-button').disabled = false;
+          document.getElementById('extract-button').disabled = false;
           logMessage("Autenticación exitosa");
         }
       });
@@ -47,7 +48,7 @@
         return;
       }
 
-      let publishDate = new Date("2025-02-13T20:00:00Z"); // 13 de febrero de 2025 a las 8:00 PM UTC
+      let publishDate = new Date(document.getElementById('publish-date').value);
       let scheduledTime = publishDate.toISOString();
 
       const postContent = {
@@ -71,7 +72,7 @@
         if (data.error) {
           logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
         } else {
-          logMessage("Entrada programada para publicación el 13 de febrero de 2025 a las 8:00 PM con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
+          logMessage("Entrada programada para publicación el " + publishDate.toLocaleString() + " con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
         }
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
@@ -103,13 +104,27 @@
       })
       .catch(err => logMessage("Error al obtener datos del blog: " + err.message));
     }
+
+    function extractFromHTML() {
+      let htmlContent = document.getElementById('html-input').value;
+      let parser = new DOMParser();
+      let doc = parser.parseFromString(htmlContent, 'text/html');
+      document.getElementById('title').value = doc.querySelector('title')?.innerText || '';
+      document.getElementById('content').value = doc.body.innerHTML || '';
+      logMessage("Datos extraídos del HTML ingresado");
+    }
   </script>
 </head>
 <body onload="initClient()">
   <h1>Autenticación con Google OAuth y Publicación en Blogger</h1>
   <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
   <button id="fetch-button" onclick="fetchBlogData()" disabled>Extraer datos del último blog</button>
+  <button id="extract-button" onclick="extractFromHTML()" disabled>Extraer datos desde HTML</button>
   <button id="post-button" disabled onclick="makeApiCall()">Publicar Blog</button>
+  <div>
+    <label>Fecha de publicación:</label>
+    <input type="datetime-local" id="publish-date">
+  </div>
   <div>
     <label>Título:</label>
     <input type="text" id="title" placeholder="Ingrese el título">
@@ -121,6 +136,10 @@
   <div>
     <label>Etiquetas (separadas por coma):</label>
     <input type="text" id="labels" placeholder="Ejemplo: Películas, Recomendaciones">
+  </div>
+  <div>
+    <label>Ingresar HTML:</label>
+    <textarea id="html-input" rows="6" placeholder="Pegue aquí el HTML del blog"></textarea>
   </div>
   <div id="log" style="border: 1px solid #ccc; padding: 10px; margin-top: 10px;"><h3>Logs:</h3></div>
 </body>
