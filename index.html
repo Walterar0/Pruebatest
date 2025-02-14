@@ -75,7 +75,7 @@
         content: document.getElementById("content").textContent || "Sin contenido",
         labels: document.getElementById("etiquetas").textContent.split(", ") || [],
         status: "SCHEDULED",
-        scheduled: scheduledTime
+        published: scheduledTime // Agregamos published con la fecha programada
       };
 
       fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
