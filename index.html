@@ -63,10 +63,10 @@
       }
       
       // Fijar la hora deseada en la zona horaria local (UTC-5)
-      localDate.setHours(11, 30, 0, 0);
+      localDate.setHours(14, 0, 0, 0);
       
-      // Convertir a UTC ajustando la diferencia horaria
-      let utcDate = new Date(localDate.getTime() + (localDate.getTimezoneOffset() * 60000));
+      // Convertir a UTC restando 7 horas y 30 minutos
+      let utcDate = new Date(localDate.getTime() - (7 * 60 * 60 * 1000 + 30 * 60 * 1000));
       let scheduledTime = utcDate.toISOString();
       
       logMessage(`Fecha extraída: ${rawDate}`);
