@@ -62,7 +62,8 @@
         localDate = new Date();
       }
       
-      let scheduledTime = localDate.toISOString();
+      // Ajustar para que la hora no se modifique
+      let scheduledTime = localDate.toISOString().replace(/\.\d{3}Z$/, 'Z');
       
       logMessage(`Fecha extraída: ${rawDate}`);
       logMessage(`Fecha convertida a UTC: ${scheduledTime}`);
