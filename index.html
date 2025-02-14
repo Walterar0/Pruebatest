@@ -46,15 +46,16 @@
         return;
       }
 
-      let publishDate = new Date("2025-02-13T20:00:00Z"); // 13 de febrero de 2025 a las 8:00 PM UTC
+      let publishDate = new Date("2025-02-13T20:00:00Z");
       let scheduledTime = publishDate.toISOString();
 
       const postContent = {
         kind: "blogger#post",
         title: document.getElementById("titulo").textContent || "Sin título",
         content: document.getElementById("content").textContent || "Sin contenido",
-        published: scheduledTime,
-        labels: document.getElementById("etiquetas").textContent.split(", ") || []
+        labels: document.getElementById("etiquetas").textContent.split(", ") || [],
+        status: "SCHEDULED",
+        published: scheduledTime
       };
 
       fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
