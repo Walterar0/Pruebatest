@@ -56,15 +56,18 @@
         foundDate = false;
       }
       
-      let publishDate = new Date(rawDate);
-      if (isNaN(publishDate.getTime())) {
+      let localDate = new Date(rawDate);
+      if (isNaN(localDate.getTime())) {
         logMessage("Error: La fecha obtenida no es válida. Usando la actual.");
-        publishDate = new Date();
+        localDate = new Date();
       }
       
-      // Fijar la hora a 21:30 (hora local)
-      publishDate.setHours(21, 30, 0, 0);
-      let scheduledTime = publishDate.toISOString();
+      // Fijar la hora deseada en la zona horaria local (UTC-5)
+      localDate.setHours(11, 30, 0, 0);
+      
+      // Convertir a UTC ajustando la diferencia horaria
+      let utcDate = new Date(localDate.getTime() + (localDate.getTimezoneOffset() * 60000));
+      let scheduledTime = utcDate.toISOString();
       
       logMessage(`Fecha extraída: ${rawDate}`);
       logMessage(`Fecha convertida a UTC: ${scheduledTime}`);
