@@ -30,8 +30,6 @@
           }
           accessToken = response.access_token;
           document.getElementById('post-button').disabled = false;
-          document.getElementById('fetch-button').disabled = false;
-          document.getElementById('extract-button').disabled = false;
           logMessage("Autenticación exitosa");
         }
       });
@@ -48,15 +46,17 @@
         return;
       }
 
-      let publishDate = new Date(document.getElementById('publish-date').value);
+      const postTitle = document.getElementById('post-title').value;
+      const postContent = document.getElementById('post-content').value;
+      const publishDate = new Date(document.getElementById('publish-date').value);
       let scheduledTime = publishDate.toISOString();
 
-      const postContent = {
+      const postData = {
         kind: "blogger#post",
-        title: document.getElementById('title').value,
-        content: document.getElementById('content').value,
+        title: postTitle,
+        content: postContent,
         published: scheduledTime,
-        labels: document.getElementById('labels').value.split(',')
+        labels: ["Películas familiares", "Recomendaciones", "Streaming"]
       };
 
       fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
@@ -65,82 +65,38 @@
           "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(postContent)
+        body: JSON.stringify(postData)
       })
       .then(response => response.json())
       .then(data => {
         if (data.error) {
           logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
         } else {
-          logMessage("Entrada programada para publicación el " + publishDate.toLocaleString() + " con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
+          logMessage("Entrada programada para publicación con etiquetas: " + postData.labels.join(", ") + " - " + data.url);
         }
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
-    }
-
-    function fetchBlogData() {
-      if (!accessToken) {
-        logMessage("Debes autenticarte primero.");
-        return;
-      }
-
-      fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts?maxResults=1&orderBy=published`, {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`
-        }
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.items && data.items.length > 0) {
-          const latestPost = data.items[0];
-          document.getElementById('title').value = latestPost.title;
-          document.getElementById('content').value = latestPost.content;
-          document.getElementById('labels').value = latestPost.labels ? latestPost.labels.join(',') : '';
-          logMessage("Última publicación extraída con éxito");
-        } else {
-          logMessage("No se encontraron publicaciones");
-        }
-      })
-      .catch(err => logMessage("Error al obtener datos del blog: " + err.message));
-    }
-
-    function extractFromHTML() {
-      let htmlContent = document.getElementById('html-input').value;
-      let parser = new DOMParser();
-      let doc = parser.parseFromString(htmlContent, 'text/html');
-      document.getElementById('title').value = doc.querySelector('title')?.innerText || '';
-      document.getElementById('content').value = doc.body.innerHTML || '';
-      logMessage("Datos extraídos del HTML ingresado");
     }
   </script>
 </head>
 <body onload="initClient()">
   <h1>Autenticación con Google OAuth y Publicación en Blogger</h1>
   <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
-  <button id="fetch-button" onclick="fetchBlogData()" disabled>Extraer datos del último blog</button>
-  <button id="extract-button" onclick="extractFromHTML()" disabled>Extraer datos desde HTML</button>
   <button id="post-button" disabled onclick="makeApiCall()">Publicar Blog</button>
-  <div>
-    <label>Fecha de publicación:</label>
-    <input type="datetime-local" id="publish-date">
-  </div>
-  <div>
-    <label>Título:</label>
-    <input type="text" id="title" placeholder="Ingrese el título">
-  </div>
-  <div>
-    <label>Contenido:</label>
-    <textarea id="content" rows="6" placeholder="Ingrese el contenido"></textarea>
-  </div>
-  <div>
-    <label>Etiquetas (separadas por coma):</label>
-    <input type="text" id="labels" placeholder="Ejemplo: Películas, Recomendaciones">
-  </div>
-  <div>
-    <label>Ingresar HTML:</label>
-    <textarea id="html-input" rows="6" placeholder="Pegue aquí el HTML del blog"></textarea>
-  </div>
+  <br>
+  <label for="post-title">Título del Post:</label>
+  <input type="text" id="post-title" placeholder="Ingresa el título">
+  <br>
+  <label for="post-content">Contenido del Post:</label>
+  <textarea id="post-content" rows="10" cols="50" placeholder="Ingresa el contenido del post"></textarea>
+  <br>
+  <label for="publish-date">Fecha de Publicación:</label>
+  <input type="datetime-local" id="publish-date">
+  <br>
+  <label for="html-content">Inserta HTML para extraer datos:</label>
+  <textarea id="html-content" rows="10" cols="50" placeholder="Pega el HTML aquí"></textarea>
+  <br>
+  <button onclick="extractFromHtml()">Extraer Datos</button>
   <div id="log" style="border: 1px solid #ccc; padding: 10px; margin-top: 10px;"><h3>Logs:</h3></div>
 </body>
 </html>
