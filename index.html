@@ -40,21 +40,48 @@
       tokenClient.requestAccessToken();
     }
 
+    function extractBlogDataFromHTML(html) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      return {
+        title: doc.querySelector('h1') ? doc.querySelector('h1').textContent : "Título Desconocido",
+        content: doc.body.innerHTML
+      };
+    }
+
+    function extractBlogDataFromText(text) {
+      return {
+        title: text.split('\n')[0] || "Título Desconocido",
+        content: text
+      };
+    }
+
     function makeApiCall() {
       if (!accessToken) {
         logMessage("Debes autenticarte primero.");
         return;
       }
+      
+      let blogData;
+      const htmlInput = document.getElementById('html-input').value;
+      const textInput = document.getElementById('text-input').value;
+      
+      if (htmlInput) {
+        blogData = extractBlogDataFromHTML(htmlInput);
+      } else if (textInput) {
+        blogData = extractBlogDataFromText(textInput);
+      } else {
+        logMessage("No hay contenido para publicar.");
+        return;
+      }
 
-      const postTitle = document.getElementById('post-title').value;
-      const postContent = document.getElementById('post-content').value;
-      const publishDate = new Date(document.getElementById('publish-date').value);
+      let publishDate = new Date("2025-02-13T20:00:00Z"); // 13 de febrero de 2025 a las 8:00 PM UTC
       let scheduledTime = publishDate.toISOString();
 
-      const postData = {
+      const postContent = {
         kind: "blogger#post",
-        title: postTitle,
-        content: postContent,
+        title: blogData.title,
+        content: blogData.content,
         published: scheduledTime,
         labels: ["Películas familiares", "Recomendaciones", "Streaming"]
       };
@@ -65,14 +92,14 @@
           "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(postData)
+        body: JSON.stringify(postContent)
       })
       .then(response => response.json())
       .then(data => {
         if (data.error) {
           logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
         } else {
-          logMessage("Entrada programada para publicación con etiquetas: " + postData.labels.join(", ") + " - " + data.url);
+          logMessage("Entrada programada para publicación con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
         }
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
@@ -83,20 +110,13 @@
   <h1>Autenticación con Google OAuth y Publicación en Blogger</h1>
   <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
   <button id="post-button" disabled onclick="makeApiCall()">Publicar Blog</button>
-  <br>
-  <label for="post-title">Título del Post:</label>
-  <input type="text" id="post-title" placeholder="Ingresa el título">
-  <br>
-  <label for="post-content">Contenido del Post:</label>
-  <textarea id="post-content" rows="10" cols="50" placeholder="Ingresa el contenido del post"></textarea>
-  <br>
-  <label for="publish-date">Fecha de Publicación:</label>
-  <input type="datetime-local" id="publish-date">
-  <br>
-  <label for="html-content">Inserta HTML para extraer datos:</label>
-  <textarea id="html-content" rows="10" cols="50" placeholder="Pega el HTML aquí"></textarea>
-  <br>
-  <button onclick="extractFromHtml()">Extraer Datos</button>
+  
+  <h2>Ingresar HTML del blog</h2>
+  <textarea id="html-input" rows="10" cols="80"></textarea>
+  
+  <h2>Ingresar Blog en Texto Plano</h2>
+  <textarea id="text-input" rows="10" cols="80"></textarea>
+  
   <div id="log" style="border: 1px solid #ccc; padding: 10px; margin-top: 10px;"><h3>Logs:</h3></div>
 </body>
 </html>
