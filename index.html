@@ -46,15 +46,35 @@
         return;
       }
 
-      let publishDate = new Date("2024-02-14T10:00:00Z"); // 14 de febrero a las 10:00 AM UTC
+      let publishDate = new Date("2025-02-13T20:00:00Z"); // 13 de febrero de 2025 a las 8:00 PM UTC
       let scheduledTime = publishDate.toISOString();
 
       const postContent = {
         kind: "blogger#post",
-        title: "Título del Blog desde JS",
-        content: "<p>Contenido del blog generado desde JavaScript</p><img src='https://via.placeholder.com/600x400' alt='Imagen de prueba' />",
+        title: "Las mejores películas para ver en familia durante el fin de semana",
+        content: `
+          <p>Nada mejor que un fin de semana en casa disfrutando de buenas películas en familia...</p>
+          <h3>1. <em>Encanto</em> (Disney+)</h3>
+          <p>Una mágica historia sobre la familia Madrigal...</p>
+          <h3>2. <em>Paddington 2</em> (Prime Video)</h3>
+          <p>Las divertidas aventuras de un oso educado...</p>
+          <h3>3. <em>Mi vecino Totoro</em> (Netflix)</h3>
+          <p>Un clásico del Studio Ghibli lleno de fantasía...</p>
+          <h3>4. <em>La familia Mitchell vs. las máquinas</em> (Netflix)</h3>
+          <p>Una comedia animada repleta de acción...</p>
+          <h3>5. <em>Coco</em> (Disney+)</h3>
+          <p>Esta joya de Pixar celebra la cultura mexicana...</p>
+          <h3>¿Qué hace que una película sea perfecta para la familia?</h3>
+          <p>Las mejores películas familiares combinan entretenimiento y valores positivos...</p>
+          <h3>Recomendaciones de imágenes para acompañar el artículo:</h3>
+          <ul>
+            <li>Familia reunida en el sofá viendo una película.</li>
+            <li>Personajes icónicos de películas familiares.</li>
+            <li>Palomitas de maíz y control remoto en una mesa.</li>
+          </ul>
+        `,
         published: scheduledTime,
-        labels: ["Tecnología", "Google API", "Blogger", "Autenticación"]
+        labels: ["Películas familiares", "Recomendaciones", "Streaming"]
       };
 
       fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
@@ -70,7 +90,7 @@
         if (data.error) {
           logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
         } else {
-          logMessage("Entrada programada para publicación el 14 de febrero a las 10:00 AM con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
+          logMessage("Entrada programada para publicación el 13 de febrero de 2025 a las 8:00 PM con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
         }
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
