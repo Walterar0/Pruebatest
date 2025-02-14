@@ -46,22 +46,22 @@
         return;
       }
 
-      let rawDate = document.getElementById("fecha").textContent;
-      if (!rawDate || rawDate === "No encontrado") {
-        logMessage("Fecha no encontrada en el contenido.");
+      let publishDateStr = document.getElementById("fecha").textContent.trim();
+      let publishDate = new Date(publishDateStr);
+      
+      if (isNaN(publishDate)) {
+        logMessage("Error: Fecha no válida");
         return;
       }
-
-      let publishDate = new Date(rawDate);
-      publishDate.setHours(publishDate.getHours() - 5); // Ajuste de UTC a Colombia (UTC-5)
+      
       let scheduledTime = publishDate.toISOString();
 
       const postContent = {
         kind: "blogger#post",
         title: document.getElementById("titulo").textContent || "Sin título",
         content: document.getElementById("content").textContent || "Sin contenido",
-        status: "scheduled",
-        published: scheduledTime,
+        status: "SCHEDULED",
+        scheduled: scheduledTime,
         labels: document.getElementById("etiquetas").textContent.split(", ") || []
       };
 
@@ -78,7 +78,7 @@
         if (data.error) {
           logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
         } else {
-          logMessage("Entrada programada para: " + publishDate.toLocaleString("es-CO") + " con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
+          logMessage("Entrada programada correctamente para: " + scheduledTime);
         }
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
