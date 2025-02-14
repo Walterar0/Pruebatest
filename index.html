@@ -78,8 +78,7 @@
         title: document.getElementById("titulo").textContent || "Sin título",
         content: document.getElementById("content").textContent || "Sin contenido",
         labels: document.getElementById("etiquetas").textContent.split(", ") || [],
-        status: "SCHEDULED",
-        published: scheduledTime // Se fija la fecha correctamente en UTC
+        status: "SCHEDULED"
       };
 
       fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
