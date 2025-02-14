@@ -46,22 +46,22 @@
         return;
       }
 
-      let scheduledTime = document.getElementById("fecha").textContent;
-      if (!scheduledTime || scheduledTime === "No encontrado") {
-        logMessage("No se encontró la fecha de publicación en el HTML.");
-        return;
-      }
+      let fechaExtraida = document.getElementById("fecha").textContent;
+      let fecha = new Date(fechaExtraida);
+      
+      // Ajustar a la hora local de Colombia (UTC-5)
+      fecha.setHours(fecha.getHours() + 5);
+      let scheduledTime = fecha.toISOString();
 
       const postContent = {
         kind: "blogger#post",
         title: document.getElementById("titulo").textContent || "Sin título",
         content: document.getElementById("content").textContent || "Sin contenido",
-        labels: document.getElementById("etiquetas").textContent.split(", ") || [],
-        status: "SCHEDULED", // Se asegura que el estado sea programado
-        published: scheduledTime // Fecha extraída del HTML correctamente
+        scheduled: scheduledTime,
+        labels: document.getElementById("etiquetas").textContent.split(", ") || []
       };
 
-      fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts/`, {
+      fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -74,34 +74,10 @@
         if (data.error) {
           logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
         } else {
-          logMessage("Entrada programada para publicación en: " + scheduledTime + " con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
+          logMessage("Entrada programada para publicación el " + scheduledTime + " con etiquetas: " + postContent.labels.join(", ") + " - " + data.url);
         }
       })
       .catch(err => logMessage("Error en la solicitud: " + err.message));
-    }
-
-    function extraerDatos() {
-      let htmlContent = document.getElementById("htmlInput").value;
-      
-      let regexTitle = /title:\s*"([^"]+)"/;
-      let regexDate = /let publishDate = new Date\("([^"]+)"\)/;
-      let regexLabels = /labels:\s*\[([^\]]+)\]/;
-      let regexContent = /content:\s*`([^`]*)`/;
-
-      let matchTitle = htmlContent.match(regexTitle);
-      let matchDate = htmlContent.match(regexDate);
-      let matchLabels = htmlContent.match(regexLabels);
-      let matchContent = htmlContent.match(regexContent);
-
-      let title = matchTitle ? matchTitle[1] : "No encontrado";
-      let date = matchDate ? new Date(matchDate[1]).toISOString() : "No encontrado";
-      let labels = matchLabels ? matchLabels[1].replace(/"/g, '') : "No encontrado";
-      let content = matchContent ? matchContent[1] : "No encontrado";
-
-      document.getElementById("titulo").textContent = title;
-      document.getElementById("fecha").textContent = date;
-      document.getElementById("etiquetas").textContent = labels;
-      document.getElementById("content").textContent = content;
     }
   </script>
 </head>
@@ -121,5 +97,31 @@
   <p><strong>Fecha:</strong> <span id="fecha"></span></p>
   <p><strong>Etiquetas:</strong> <span id="etiquetas"></span></p>
   <p><strong>Contenido:</strong> <span id="content"></span></p>
+  
+  <script>
+    function extraerDatos() {
+      let htmlContent = document.getElementById("htmlInput").value;
+      
+      let regexTitle = /title:\s*"([^"]+)"/;
+      let regexDate = /let publishDate = new Date\("([^"]+)"\)/;
+      let regexLabels = /labels:\s*\[([^\]]+)\]/;
+      let regexContent = /content:\s*`([^`]*)`/;
+
+      let matchTitle = htmlContent.match(regexTitle);
+      let matchDate = htmlContent.match(regexDate);
+      let matchLabels = htmlContent.match(regexLabels);
+      let matchContent = htmlContent.match(regexContent);
+
+      let title = matchTitle ? matchTitle[1] : "No encontrado";
+      let date = matchDate ? matchDate[1] : "No encontrado";
+      let labels = matchLabels ? matchLabels[1].replace(/"/g, '') : "No encontrado";
+      let content = matchContent ? matchContent[1] : "No encontrado";
+
+      document.getElementById("titulo").textContent = title;
+      document.getElementById("fecha").textContent = date;
+      document.getElementById("etiquetas").textContent = labels;
+      document.getElementById("content").textContent = content;
+    }
+  </script>
 </body>
 </html>
