@@ -62,11 +62,12 @@
         publishDate = new Date();
       }
       
-      publishDate.setHours(publishDate.getHours() - 5); // Convertir de UTC a Colombia (UTC-5)
+      // Fijar la hora a 21:30 (hora local)
+      publishDate.setHours(21, 30, 0, 0);
       let scheduledTime = publishDate.toISOString();
       
       logMessage(`Fecha extraída: ${rawDate}`);
-      logMessage(`Fecha convertida: ${scheduledTime}`);
+      logMessage(`Fecha convertida a UTC: ${scheduledTime}`);
       logMessage(foundDate ? "Fecha extraída correctamente." : "Se asignó una fecha por defecto.");
       
       const postContent = {
@@ -75,7 +76,7 @@
         content: document.getElementById("content").textContent || "Sin contenido",
         labels: document.getElementById("etiquetas").textContent.split(", ") || [],
         status: "SCHEDULED",
-        published: scheduledTime // Agregamos published con la fecha programada
+        published: scheduledTime // Se fija la fecha correctamente en UTC
       };
 
       fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
