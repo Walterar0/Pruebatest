@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Google Auth y Publicación en Blogger</title>
+  <title>Publicación Múltiple en Blogger</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     const CLIENT_ID = "338010031407-a0qku90nm9atgjsgirdg9i40av85ptbn.apps.googleusercontent.com";
@@ -14,24 +14,18 @@
     let accessToken = null;
     let tokenClient;
 
-    function logMessage(message) {
-      document.getElementById('log').innerHTML += `<p>${message}</p>`;
-      console.log(message);
-      alert(message);
-    }
-
     function initClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
         callback: (response) => {
           if (response.error) {
-            logMessage("Error en autenticación: " + JSON.stringify(response));
+            alert("Error en autenticación: " + JSON.stringify(response));
             return;
           }
           accessToken = response.access_token;
           document.getElementById('post-button').disabled = false;
-          logMessage("Autenticación exitosa");
+          alert("Autenticación exitosa");
         }
       });
       document.getElementById('auth-button').disabled = false;
@@ -41,105 +35,86 @@
       tokenClient.requestAccessToken();
     }
 
-    function makeApiCall() {
-      if (!accessToken) {
-        logMessage("Debes autenticarte primero.");
-        return;
-      }
-
-      let rawDate = document.getElementById("fecha").textContent;
-      let foundDate = true;
-
-      if (!rawDate || rawDate === "No encontrado") {
-        logMessage("Fecha no encontrada, usando la actual.");
-        rawDate = new Date().toISOString();
-        foundDate = false;
-      }
-      
-      let localDate = new Date(rawDate);
-      if (isNaN(localDate.getTime())) {
-        logMessage("Error: La fecha obtenida no es válida. Usando la actual.");
-        localDate = new Date();
-      }
-      
-      // Ajustar la hora sumando 5 horas para convertir a UTC
-      let utcDate = new Date(localDate.getTime() + (5 * 60 * 60 * 1000));
-      let scheduledTime = utcDate.toISOString();
-      
-      logMessage(`Fecha extraída: ${rawDate}`);
-      logMessage(`Fecha convertida a UTC: ${scheduledTime}`);
-      logMessage(foundDate ? "Fecha extraída correctamente." : "Se asignó una fecha por defecto.");
-      
-      const postContent = {
-        kind: "blogger#post",
-        title: document.getElementById("titulo").textContent || "Sin título",
-        content: document.getElementById("content").textContent || "Sin contenido",
-        labels: document.getElementById("etiquetas").textContent.split(", ") || [],
-        status: "SCHEDULED",
-        published: scheduledTime 
-      };
-
-      fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(postContent)
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.error) {
-          logMessage("Error al publicar la entrada: " + JSON.stringify(data.error));
-        } else {
-          logMessage("Entrada programada correctamente para: " + scheduledTime + " - " + data.url);
-        }
-      })
-      .catch(err => logMessage("Error en la solicitud: " + err.message));
+    function addTextArea() {
+      const container = document.getElementById("post-container");
+      const div = document.createElement("div");
+      div.classList.add("post-entry");
+      div.innerHTML = `
+        <textarea class="post-content" rows="5" cols="80" placeholder="Pegar HTML aquí"></textarea>
+        <button onclick="extractData(this)">Extraer Datos</button>
+        <p><strong>Título:</strong> <span class="titulo"></span></p>
+        <p><strong>Fecha:</strong> <span class="fecha"></span></p>
+        <p><strong>Etiquetas:</strong> <span class="etiquetas"></span></p>
+        <p><strong>Contenido:</strong> <span class="content"></span></p>
+        <hr>
+      `;
+      container.appendChild(div);
     }
-  </script>
-</head>
-<body onload="initClient()">
-  <h1>Autenticación con Google OAuth y Publicación en Blogger</h1>
-  <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
-  <button id="post-button" disabled onclick="makeApiCall()">Publicar Blog</button>
-  <div id="log" style="border: 1px solid #ccc; padding: 10px; margin-top: 10px;"><h3>Logs:</h3></div>
-  
-  <h2>Extraer Datos del Blog</h2>
-  <label for="htmlInput">Pegar HTML del Blog:</label><br>
-  <textarea id="htmlInput" rows="10" cols="80"></textarea><br>
-  <button onclick="extraerDatos()">Extraer Datos</button>
 
-  <h3>Resultados</h3>
-  <p><strong>Título:</strong> <span id="titulo"></span></p>
-  <p><strong>Fecha:</strong> <span id="fecha"></span></p>
-  <p><strong>Etiquetas:</strong> <span id="etiquetas"></span></p>
-  <p><strong>Contenido:</strong> <span id="content"></span></p>
-  
-  <script>
-    function extraerDatos() {
-      let htmlContent = document.getElementById("htmlInput").value;
+    function extractData(button) {
+      let container = button.parentElement;
+      let htmlContent = container.querySelector(".post-content").value;
       
       let regexTitle = /title:\s*"([^"]+)"/;
       let regexDate = /let publishDate = new Date\("([^"]+)"\)/;
       let regexLabels = /labels:\s*\[([^\]]+)\]/;
       let regexContent = /content:\s*`([^`]*)`/;
 
-      let matchTitle = htmlContent.match(regexTitle);
-      let matchDate = htmlContent.match(regexDate);
-      let matchLabels = htmlContent.match(regexLabels);
-      let matchContent = htmlContent.match(regexContent);
+      container.querySelector(".titulo").textContent = htmlContent.match(regexTitle)?.[1] || "No encontrado";
+      container.querySelector(".fecha").textContent = htmlContent.match(regexDate)?.[1] || "No encontrado";
+      container.querySelector(".etiquetas").textContent = htmlContent.match(regexLabels)?.[1].replace(/"/g, '') || "No encontrado";
+      container.querySelector(".content").textContent = htmlContent.match(regexContent)?.[1] || "No encontrado";
+    }
 
-      let title = matchTitle ? matchTitle[1] : "No encontrado";
-      let date = matchDate ? matchDate[1] : "No encontrado";
-      let labels = matchLabels ? matchLabels[1].replace(/"/g, '') : "No encontrado";
-      let content = matchContent ? matchContent[1] : "No encontrado";
+    function publishPosts() {
+      if (!accessToken) {
+        alert("Debes autenticarte primero.");
+        return;
+      }
+      
+      document.querySelectorAll(".post-entry").forEach(entry => {
+        let title = entry.querySelector(".titulo").textContent || "Sin título";
+        let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
+        let labels = entry.querySelector(".etiquetas").textContent.split(", ") || [];
+        let content = entry.querySelector(".content").textContent || "Sin contenido";
+        
+        let localDate = new Date(rawDate);
+        if (isNaN(localDate.getTime())) localDate = new Date();
+        let scheduledTime = new Date(localDate.getTime() + (5 * 60 * 60 * 1000)).toISOString();
 
-      document.getElementById("titulo").textContent = title;
-      document.getElementById("fecha").textContent = date;
-      document.getElementById("etiquetas").textContent = labels;
-      document.getElementById("content").textContent = content;
+        fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            kind: "blogger#post",
+            title,
+            content,
+            labels,
+            status: "SCHEDULED",
+            published: scheduledTime 
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.error) {
+            alert("Error al publicar: " + JSON.stringify(data.error));
+          } else {
+            alert("Publicación programada para: " + scheduledTime);
+          }
+        })
+        .catch(err => alert("Error en la solicitud: " + err.message));
+      });
     }
   </script>
+</head>
+<body onload="initClient()">
+  <h1>Publicaciones Múltiples en Blogger</h1>
+  <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
+  <button id="add-post" onclick="addTextArea()">Añadir Publicación</button>
+  <button id="post-button" onclick="publishPosts()" disabled>Publicar Todas</button>
+  <div id="post-container"></div>
 </body>
 </html>
