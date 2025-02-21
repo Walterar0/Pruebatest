@@ -29,6 +29,7 @@
         }
       });
       document.getElementById('auth-button').disabled = false;
+      addTextArea();
     }
 
     function handleAuthClick() {
@@ -41,7 +42,7 @@
       div.classList.add("post-entry");
       div.innerHTML = `
         <textarea class="post-content" rows="5" cols="80" placeholder="Pegar HTML aquí"></textarea>
-        <button onclick="extractData(this)">Extraer Datos</button>
+        <button onclick="pasteContent(this)">Pegar</button>
         <p><strong>Título:</strong> <span class="titulo"></span></p>
         <p><strong>Fecha:</strong> <span class="fecha"></span></p>
         <p><strong>Etiquetas:</strong> <span class="etiquetas"></span></p>
@@ -51,8 +52,19 @@
       container.appendChild(div);
     }
 
-    function extractData(button) {
-      let container = button.parentElement;
+    async function pasteContent(button) {
+      try {
+        const text = await navigator.clipboard.readText();
+        let container = button.parentElement;
+        let textarea = container.querySelector(".post-content");
+        textarea.value = text;
+        extractData(container);
+      } catch (err) {
+        alert("Error al pegar: " + err.message);
+      }
+    }
+
+    function extractData(container) {
       let htmlContent = container.querySelector(".post-content").value;
       
       let regexTitle = /title:\s*"([^"]+)"/;
