@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Listar Títulos de Publicaciones en Blogger</title>
+  <title>Listar Todos los Títulos de Publicaciones en Blogger</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     const CLIENT_ID = "338010031407-a0qku90nm9atgjsgirdg9i40av85ptbn.apps.googleusercontent.com";
@@ -35,33 +35,48 @@
       tokenClient.requestAccessToken();
     }
 
-    async function fetchPostTitles() {
+    async function fetchAllPostTitles() {
       if (!accessToken) {
         alert("Debes autenticarte primero.");
         return;
       }
 
+      let titlesContainer = document.getElementById("titles-container");
+      titlesContainer.innerHTML = "<h2>Cargando títulos...</h2>";
+      let allTitles = [];
+      let nextPageToken = null;
+
       try {
-        let response = await fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts?fields=items(title)`, {
-          headers: {
-            "Authorization": `Bearer ${accessToken}`
+        do {
+          let url = `https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts?fields=items(title),nextPageToken&maxResults=50`;
+          if (nextPageToken) {
+            url += `&pageToken=${nextPageToken}`;
           }
-        });
 
-        let data = await response.json();
+          let response = await fetch(url, {
+            headers: {
+              "Authorization": `Bearer ${accessToken}`
+            }
+          });
 
-        if (data.error) {
-          alert("Error al obtener títulos: " + JSON.stringify(data.error));
-          return;
-        }
+          let data = await response.json();
+          if (data.error) {
+            alert("Error al obtener títulos: " + JSON.stringify(data.error));
+            return;
+          }
 
-        let titlesContainer = document.getElementById("titles-container");
-        titlesContainer.innerHTML = "<h2>Títulos de publicaciones</h2>";
+          if (data.items) {
+            allTitles.push(...data.items.map(post => post.title));
+          }
 
-        if (data.items && data.items.length > 0) {
-          data.items.forEach(post => {
+          nextPageToken = data.nextPageToken || null;
+        } while (nextPageToken);
+
+        titlesContainer.innerHTML = "<h2>Títulos de todas las publicaciones</h2>";
+        if (allTitles.length > 0) {
+          allTitles.forEach(title => {
             let p = document.createElement("p");
-            p.textContent = post.title;
+            p.textContent = title;
             titlesContainer.appendChild(p);
           });
         } else {
@@ -74,9 +89,9 @@
   </script>
 </head>
 <body onload="initClient()">
-  <h1>Listar Títulos de Publicaciones en Blogger</h1>
+  <h1>Listar Todos los Títulos de Publicaciones en Blogger</h1>
   <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
-  <button id="fetch-titles-button" onclick="fetchPostTitles()" disabled>Obtener Títulos</button>
+  <button id="fetch-titles-button" onclick="fetchAllPostTitles()" disabled>Obtener Todos los Títulos</button>
   <div id="titles-container"></div>
 </body>
 </html>
