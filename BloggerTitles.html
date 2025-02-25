@@ -11,7 +11,7 @@
     const BLOG_ID = "6423620772115300042";
     const SCOPES = "https://www.googleapis.com/auth/blogger.readonly";
     
-    let accessToken = null;
+    let accessToken = localStorage.getItem("accessToken") || null;
     let tokenClient;
 
     function initClient() {
@@ -24,15 +24,37 @@
             return;
           }
           accessToken = response.access_token;
-          document.getElementById('fetch-titles-button').disabled = false;
-          alert("Autenticación exitosa");
+          localStorage.setItem("accessToken", accessToken);
+          updateSessionStatus();
         }
       });
-      document.getElementById('auth-button').disabled = false;
+
+      updateSessionStatus();
+    }
+
+    function updateSessionStatus() {
+      let statusElement = document.getElementById("session-status");
+      if (accessToken) {
+        document.getElementById("fetch-titles-button").disabled = false;
+        document.getElementById("auth-button").disabled = true;
+        statusElement.textContent = "Sesión iniciada";
+        statusElement.style.color = "green";
+      } else {
+        document.getElementById("fetch-titles-button").disabled = true;
+        document.getElementById("auth-button").disabled = false;
+        statusElement.textContent = "No has iniciado sesión";
+        statusElement.style.color = "red";
+      }
     }
 
     function handleAuthClick() {
       tokenClient.requestAccessToken();
+    }
+
+    function logout() {
+      localStorage.removeItem("accessToken");
+      accessToken = null;
+      updateSessionStatus();
     }
 
     async function fetchAllPostTitles() {
@@ -90,8 +112,10 @@
 </head>
 <body onload="initClient()">
   <h1>Listar Todos los Títulos de Publicaciones en Blogger</h1>
+  <p id="session-status">Cargando estado de sesión...</p>
   <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
   <button id="fetch-titles-button" onclick="fetchAllPostTitles()" disabled>Obtener Todos los Títulos</button>
+  <button onclick="logout()">Cerrar Sesión</button>
   <div id="titles-container"></div>
 </body>
 </html>
