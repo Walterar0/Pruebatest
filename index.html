@@ -13,6 +13,7 @@
     
     let accessToken = null;
     let tokenClient;
+    let publishedTitles = new Set(); // Para evitar publicaciones duplicadas
 
     function initClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
@@ -24,7 +25,9 @@
             return;
           }
           accessToken = response.access_token;
-          document.getElementById('post-button').disabled = false;
+          document.getElementById('auth-button').style.display = "none";
+          document.getElementById('status').textContent = "Ya iniciaste sesión";
+          document.getElementById('post-button').style.display = "inline";
           alert("Autenticación exitosa");
         }
       });
@@ -89,6 +92,12 @@
         let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
         let labels = entry.querySelector(".etiquetas").textContent.split(", ") || [];
         let content = entry.querySelector(".content").textContent || "Sin contenido";
+
+        // Evitar publicaciones duplicadas
+        if (publishedTitles.has(title)) {
+          alert(`El post "${title}" ya fue publicado.`);
+          return;
+        }
         
         let localDate = new Date(rawDate);
         if (isNaN(localDate.getTime())) localDate = new Date();
@@ -114,7 +123,8 @@
           if (data.error) {
             alert("Error al publicar: " + JSON.stringify(data.error));
           } else {
-            alert("Publicación programada para: " + scheduledTime);
+            alert(`Publicación programada para: ${scheduledTime}`);
+            publishedTitles.add(title); // Registrar el título como publicado
           }
         })
         .catch(err => alert("Error en la solicitud: " + err.message));
@@ -124,9 +134,10 @@
 </head>
 <body onload="initClient()">
   <h1>Publicaciones Múltiples en Blogger</h1>
+  <p id="status"></p>
   <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
   <button id="add-post" onclick="addTextArea()">Añadir Publicación</button>
-  <button id="post-button" onclick="publishPosts()" disabled>Publicar Todas</button>
+  <button id="post-button" onclick="publishPosts()" style="display: none;">Publicar Todas</button>
   <div id="post-container"></div>
 </body>
 </html>
