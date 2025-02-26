@@ -26,23 +26,30 @@
           accessToken = response.access_token;
           localStorage.setItem("accessToken", accessToken);
           updateSessionStatus();
+          fetchAllPostTitles();
         }
       });
 
       updateSessionStatus();
+      if (accessToken) {
+        fetchAllPostTitles();
+      }
     }
 
     function updateSessionStatus() {
       let statusElement = document.getElementById("session-status");
+      let authButton = document.getElementById("auth-button");
+      let fetchButton = document.getElementById("fetch-titles-button");
+
       if (accessToken) {
-        document.getElementById("fetch-titles-button").disabled = false;
-        document.getElementById("auth-button").disabled = true;
-        statusElement.textContent = "Sesión iniciada";
+        fetchButton.style.display = "inline-block";
+        authButton.style.display = "none";
+        statusElement.textContent = "✅ Ya iniciaste sesión";
         statusElement.style.color = "green";
       } else {
-        document.getElementById("fetch-titles-button").disabled = true;
-        document.getElementById("auth-button").disabled = false;
-        statusElement.textContent = "No has iniciado sesión";
+        fetchButton.style.display = "none";
+        authButton.style.display = "inline-block";
+        statusElement.textContent = "❌ No has iniciado sesión";
         statusElement.style.color = "red";
       }
     }
@@ -55,6 +62,7 @@
       localStorage.removeItem("accessToken");
       accessToken = null;
       updateSessionStatus();
+      document.getElementById("titles-container").innerHTML = "";
     }
 
     async function fetchAllPostTitles() {
@@ -113,8 +121,8 @@
 <body onload="initClient()">
   <h1>Listar Todos los Títulos de Publicaciones en Blogger</h1>
   <p id="session-status">Cargando estado de sesión...</p>
-  <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
-  <button id="fetch-titles-button" onclick="fetchAllPostTitles()" disabled>Obtener Todos los Títulos</button>
+  <button id="auth-button" onclick="handleAuthClick()" style="display:none;">Iniciar sesión con Google</button>
+  <button id="fetch-titles-button" onclick="fetchAllPostTitles()" style="display:none;">Obtener Todos los Títulos</button>
   <button onclick="logout()">Cerrar Sesión</button>
   <div id="titles-container"></div>
 </body>
