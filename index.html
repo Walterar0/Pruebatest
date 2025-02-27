@@ -13,9 +13,11 @@
     
     let accessToken = null;
     let tokenClient;
-    let publishedTitles = new Set(); // Para evitar publicaciones duplicadas
+    let publishedTitles = new Set(); // Evitar duplicados
 
     function initClient() {
+      document.getElementById('status').textContent = "No has iniciado sesión";
+
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
@@ -28,9 +30,9 @@
           document.getElementById('auth-button').style.display = "none";
           document.getElementById('status').textContent = "Ya iniciaste sesión";
           document.getElementById('post-button').style.display = "inline";
-          alert("Autenticación exitosa");
         }
       });
+
       document.getElementById('auth-button').disabled = false;
       addTextArea();
     }
@@ -46,13 +48,19 @@
       div.innerHTML = `
         <textarea class="post-content" rows="5" cols="80" placeholder="Pegar HTML aquí"></textarea>
         <button onclick="pasteContent(this)">Pegar</button>
+        <button onclick="removeEntry(this)">Eliminar</button>
         <p><strong>Título:</strong> <span class="titulo"></span></p>
         <p><strong>Fecha:</strong> <span class="fecha"></span></p>
         <p><strong>Etiquetas:</strong> <span class="etiquetas"></span></p>
         <p><strong>Contenido:</strong> <span class="content"></span></p>
+        <p class="status-msg"></p>
         <hr>
       `;
       container.appendChild(div);
+    }
+
+    function removeEntry(button) {
+      button.parentElement.remove();
     }
 
     async function pasteContent(button) {
@@ -62,6 +70,7 @@
         let textarea = container.querySelector(".post-content");
         textarea.value = text;
         extractData(container);
+        container.querySelector(".status-msg").textContent = "Código pegado"; // Mensaje permanente
       } catch (err) {
         alert("Error al pegar: " + err.message);
       }
@@ -83,10 +92,15 @@
 
     function publishPosts() {
       if (!accessToken) {
+        document.getElementById('status').textContent = "Primero debes iniciar sesión";
         alert("Debes autenticarte primero.");
         return;
       }
-      
+
+      document.getElementById('status').textContent = "Botón presionado... Publicando entradas.";
+
+      let totalPublished = 0;
+
       document.querySelectorAll(".post-entry").forEach(entry => {
         let title = entry.querySelector(".titulo").textContent || "Sin título";
         let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
@@ -123,12 +137,20 @@
           if (data.error) {
             alert("Error al publicar: " + JSON.stringify(data.error));
           } else {
-            alert(`Publicación programada para: ${scheduledTime}`);
+            totalPublished++;
             publishedTitles.add(title); // Registrar el título como publicado
+            entry.remove(); // Eliminar el textarea después de publicar
           }
         })
         .catch(err => alert("Error en la solicitud: " + err.message));
       });
+
+      // Mostrar mensaje permanente de publicaciones realizadas
+      setTimeout(() => {
+        if (totalPublished > 0) {
+          document.getElementById("status").textContent = `Fueron publicadas ${totalPublished} entradas.`;
+        }
+      }, 3000);
     }
   </script>
 </head>
