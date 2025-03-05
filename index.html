@@ -10,14 +10,11 @@
     const API_KEY = "AIzaSyBkROi9aAkTcWaZwMa05RG7dFPbwdrZIok";
     const BLOG_ID = "6423620772115300042";
     const SCOPES = "https://www.googleapis.com/auth/blogger";
-
+    
     let accessToken = null;
     let tokenClient;
-    let publishedTitles = new Set();
 
     function initClient() {
-      document.getElementById('status').textContent = "No has iniciado sesión";
-
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
@@ -27,12 +24,12 @@
             return;
           }
           accessToken = response.access_token;
-          document.getElementById('auth-button').style.display = "none";
-          document.getElementById('status').textContent = "Ya iniciaste sesión";
-          document.getElementById('post-button').style.display = "inline";
+          document.getElementById('auth-button').style.display = 'none';
+          document.getElementById('status-msg').textContent = "Ya iniciaste sesión";
+          document.getElementById('post-button').style.display = 'inline-block';
+          alert("Autenticación exitosa");
         }
       });
-
       document.getElementById('auth-button').disabled = false;
       addTextArea();
     }
@@ -50,7 +47,7 @@
         <button onclick="pasteContent(this)">Pegar</button>
         <button onclick="removeEntry(this)">Eliminar</button>
         <p><strong>Título:</strong> <span class="titulo"></span></p>
-        <p><strong>Fecha:</strong> <span class="fecha">No encontrada</span></p>
+        <p><strong>Fecha:</strong> <span class="fecha"></span></p>
         <p><strong>Etiquetas:</strong> <span class="etiquetas"></span></p>
         <p><strong>Contenido:</strong> <span class="content"></span></p>
         <p class="status-msg"></p>
@@ -70,7 +67,6 @@
         let textarea = container.querySelector(".post-content");
         textarea.value = text;
         extractData(container);
-        container.querySelector(".status-msg").textContent = "Código pegado";
       } catch (err) {
         alert("Error al pegar: " + err.message);
       }
@@ -78,43 +74,49 @@
 
     function extractData(container) {
       let htmlContent = container.querySelector(".post-content").value;
-      
-      let regexTitle = /title:\s*"([^"]+)"/;
-      let regexDate = /let publishDate = new Date\("([^"]+)"\)/;
-      let regexLabels = /labels:\s*\[([^\]]+)\]/;
-      let regexContent = /content:\s*`([^`]*)`/;
 
-      let extractedDate = htmlContent.match(regexDate)?.[1] || null;
+      try {
+        let jsonMatch = htmlContent.match(/const\s+postContent_[^{]+(\{[\s\S]+\});/);
+        if (!jsonMatch) throw new Error("No se encontró un objeto válido de publicación.");
 
-      container.querySelector(".titulo").textContent = htmlContent.match(regexTitle)?.[1] || "No encontrado";
-      container.querySelector(".fecha").textContent = extractedDate ? formatDate(extractedDate) : "No encontrada";
-      container.querySelector(".etiquetas").textContent = htmlContent.match(regexLabels)?.[1].replace(/"/g, '') || "No encontrado";
-      container.querySelector(".content").textContent = htmlContent.match(regexContent)?.[1] || "No encontrado";
-      
-      container.dataset.publishDate = extractedDate || new Date().toISOString(); // Guardar fecha en el elemento
+        let jsonString = jsonMatch[1].trim();
+        let postData = JSON.parse(jsonString);
+
+        let title = postData.title || "Título no encontrado";
+        let content = postData.content || "Contenido no encontrado";
+        let labels = postData.labels ? postData.labels.join(", ") : "Etiquetas no encontradas";
+        let publishDate = postData.published || "2025-03-05T13:19:02.00Z";
+
+        container.querySelector(".titulo").textContent = title;
+        container.querySelector(".fecha").textContent = formatDate(publishDate);
+        container.querySelector(".etiquetas").textContent = labels;
+        container.querySelector(".content").textContent = content;
+        container.dataset.publishDate = publishDate;
+
+        container.querySelector(".status-msg").textContent = "Código pegado y analizado correctamente";
+      } catch (error) {
+        container.querySelector(".status-msg").textContent = "Error en la extracción: " + error.message;
+      }
+    }
+
+    function formatDate(isoString) {
+      let date = new Date(isoString);
+      return date.toLocaleString("es-ES", { timeZone: "UTC" });
     }
 
     function publishPosts() {
       if (!accessToken) {
-        document.getElementById('status').textContent = "Primero debes iniciar sesión";
-        alert("Debes autenticarte primero.");
+        document.getElementById("status-msg").textContent = "Primero debes iniciar sesión";
         return;
       }
 
-      document.getElementById('status').textContent = "Botón presionado... Publicando entradas.";
-
-      let totalPublished = 0;
-
       document.querySelectorAll(".post-entry").forEach(entry => {
         let title = entry.querySelector(".titulo").textContent || "Sin título";
+        let rawDate = entry.dataset.publishDate || "2025-03-05T13:19:02.00Z";
         let labels = entry.querySelector(".etiquetas").textContent.split(", ") || [];
         let content = entry.querySelector(".content").textContent || "Sin contenido";
-        let publishDate = entry.dataset.publishDate || new Date().toISOString();
 
-        if (publishedTitles.has(title)) {
-          alert(`El post "${title}" ya fue publicado.`);
-          return;
-        }
+        let scheduledTime = new Date(rawDate).toISOString();
 
         fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
           method: "POST",
@@ -128,7 +130,7 @@
             content,
             labels,
             status: "SCHEDULED",
-            published: publishDate
+            published: scheduledTime
           })
         })
         .then(response => response.json())
@@ -136,39 +138,18 @@
           if (data.error) {
             alert("Error al publicar: " + JSON.stringify(data.error));
           } else {
-            totalPublished++;
-            publishedTitles.add(title);
-            entry.remove();
+            entry.querySelector(".status-msg").textContent = "Fueron publicadas";
           }
         })
         .catch(err => alert("Error en la solicitud: " + err.message));
-      });
-
-      setTimeout(() => {
-        if (totalPublished > 0) {
-          document.getElementById("status").textContent = `Fueron publicadas ${totalPublished} entradas.`;
-        }
-      }, 3000);
-    }
-
-    function formatDate(isoString) {
-      let date = new Date(isoString);
-      return date.toLocaleDateString("es-ES", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        timeZone: "UTC"
       });
     }
   </script>
 </head>
 <body onload="initClient()">
   <h1>Publicaciones Múltiples en Blogger</h1>
-  <p id="status"></p>
   <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
+  <p id="status-msg"></p>
   <button id="add-post" onclick="addTextArea()">Añadir Publicación</button>
   <button id="post-button" onclick="publishPosts()" style="display: none;">Publicar Todas</button>
   <div id="post-container"></div>
