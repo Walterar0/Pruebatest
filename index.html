@@ -13,7 +13,7 @@
     
     let accessToken = null;
     let tokenClient;
-    let publishedTitles = new Set(); // Evitar duplicados
+    let publishedTitles = new Set();
 
     function initClient() {
       document.getElementById('status').textContent = "No has iniciado sesión";
@@ -46,7 +46,7 @@
       const div = document.createElement("div");
       div.classList.add("post-entry");
       div.innerHTML = `
-        <textarea class="post-content" rows="5" cols="80" placeholder="Pegar HTML aquí"></textarea>
+        <textarea class="post-content" rows="5" cols="80" placeholder="Pegar JSON aquí"></textarea>
         <button onclick="pasteContent(this)">Pegar</button>
         <button onclick="removeEntry(this)">Eliminar</button>
         <p><strong>Título:</strong> <span class="titulo"></span></p>
@@ -70,7 +70,7 @@
         let textarea = container.querySelector(".post-content");
         textarea.value = text;
         extractData(container);
-        container.querySelector(".status-msg").textContent = "Código pegado"; // Mensaje permanente
+        container.querySelector(".status-msg").textContent = "Código pegado";
       } catch (err) {
         alert("Error al pegar: " + err.message);
       }
@@ -78,11 +78,11 @@
 
     function extractData(container) {
       let htmlContent = container.querySelector(".post-content").value;
-      
-      let regexTitle = /title:\s*"([^"]+)"/;
-      let regexDate = /let publishDate = new Date\("([^"]+)"\)/;
-      let regexLabels = /labels:\s*\[([^\]]+)\]/;
-      let regexContent = /content:\s*`([^`]*)`/;
+
+      let regexTitle = /"title":\s*"([^"]+)"/;
+      let regexDate = /"published":\s*"([^"]+)"/;
+      let regexLabels = /"labels":\s*\[([^\]]+)\]/;
+      let regexContent = /"content":\s*"([^"]+)"/;
 
       container.querySelector(".titulo").textContent = htmlContent.match(regexTitle)?.[1] || "No encontrado";
       container.querySelector(".fecha").textContent = htmlContent.match(regexDate)?.[1] || "No encontrado";
@@ -107,7 +107,6 @@
         let labels = entry.querySelector(".etiquetas").textContent.split(", ") || [];
         let content = entry.querySelector(".content").textContent || "Sin contenido";
 
-        // Evitar publicaciones duplicadas
         if (publishedTitles.has(title)) {
           alert(`El post "${title}" ya fue publicado.`);
           return;
@@ -138,14 +137,13 @@
             alert("Error al publicar: " + JSON.stringify(data.error));
           } else {
             totalPublished++;
-            publishedTitles.add(title); // Registrar el título como publicado
-            entry.remove(); // Eliminar el textarea después de publicar
+            publishedTitles.add(title);
+            entry.remove();
           }
         })
         .catch(err => alert("Error en la solicitud: " + err.message));
       });
 
-      // Mostrar mensaje permanente de publicaciones realizadas
       setTimeout(() => {
         if (totalPublished > 0) {
           document.getElementById("status").textContent = `Fueron publicadas ${totalPublished} entradas.`;
