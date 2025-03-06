@@ -5,6 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Publicación Múltiple en Blogger</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    .post-entry {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    .content {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+  </style>
   <script>
     const CLIENT_ID = "338010031407-a0qku90nm9atgjsgirdg9i40av85ptbn.apps.googleusercontent.com";
     const API_KEY = "AIzaSyBkROi9aAkTcWaZwMa05RG7dFPbwdrZIok";
@@ -49,6 +69,7 @@
         <textarea class="post-content" rows="10" cols="80" placeholder="Pegar JSON aquí"></textarea>
         <button onclick="pasteContent(this)">Pegar</button>
         <button onclick="removeEntry(this)">Eliminar</button>
+        <div class="json-status"></div>
         <p><strong>Título:</strong> <span class="titulo"></span></p>
         <p><strong>Fecha:</strong> <span class="fecha"></span></p>
         <p><strong>Etiquetas:</strong> <span class="etiquetas"></span></p>
@@ -77,24 +98,185 @@
       }
     }
 
+    function fixJsonString(jsonStr) {
+      let fixed = jsonStr;
+      
+      // Detectar si el texto comienza con 'const' o 'let' (variables JavaScript)
+      if (fixed.trim().match(/^(const|let|var)\s+\w+\s*=/)) {
+        try {
+          // Extraer solo el objeto JSON
+          const match = fixed.match(/=\s*({[\s\S]*});?\s*$/);
+          if (match && match[1]) {
+            fixed = match[1];
+          }
+        } catch (e) {
+          console.log("Error al extraer objeto JSON:", e);
+        }
+      }
+      
+      // Eliminar comillas incorrectas al inicio/final
+      fixed = fixed.replace(/^"/, '').replace(/"$/, '');
+      
+      // Corregir secuencias de escape problemáticas
+      fixed = fixed
+        .replace(/\\T/g, "")  // Elimina "\T" incorrecto
+        .replace(/\\P/g, "")  // Elimina "\P" incorrecto
+        .replace(/\\t/g, "\t") // Mantiene tabulaciones
+        .replace(/\\\\/g, "\\") // Corrige barras invertidas dobles
+        .replace(/\\"/g, '"') // Corrige comillas escapadas incorrectamente
+        .replace(/(['"])\1\s*\1\s*\1/g, '$1$1'); // Corrige dobles comillas repetidas
+      
+      // Corregir arrays de etiquetas con formato incorrecto
+      if (fixed.includes('"labels": [') && fixed.includes('\\"]')) {
+        try {
+          const labelsMatch = fixed.match(/"labels":\s*\[(.*?)\]/s);
+          if (labelsMatch && labelsMatch[1]) {
+            let labelsText = labelsMatch[1];
+            // Limpiar comillas y secuencias de escape en etiquetas
+            labelsText = labelsText
+              .replace(/\\"/g, '"')
+              .replace(/^["']\s*/, '')
+              .replace(/\s*["']$/, '')
+              .replace(/["']\s*,\s*["']/g, '","');
+            
+            // Asegurar que estén correctamente formateados
+            if (!labelsText.startsWith('"')) labelsText = '"' + labelsText;
+            if (!labelsText.endsWith('"')) labelsText = labelsText + '"';
+            labelsText = labelsText.replace(/",\s*(?!")/, '","');
+            
+            fixed = fixed.replace(/"labels":\s*\[(.*?)\]/s, `"labels": [${labelsText}]`);
+          }
+        } catch (e) {
+          console.log("Error al corregir etiquetas:", e);
+        }
+      }
+      
+      return fixed;
+    }
+
     function extractData(container) {
       let jsonContent = container.querySelector(".post-content").value;
-
+      let statusElement = container.querySelector(".json-status");
+      
       try {
-        let post = JSON.parse(jsonContent);
-
-        // Validar y corregir los datos si es necesario
+        // Paso 1: Corregir el formato JSON
+        let fixedJson = fixJsonString(jsonContent);
+        
+        // Paso 2: Intentar analizar el JSON
+        let post;
+        try {
+          post = JSON.parse(fixedJson);
+          statusElement.innerHTML = '<span class="success">JSON válido ✓</span>';
+          statusElement.title = 'JSON corregido y analizado correctamente';
+        } catch (parseError) {
+          // Si hay un error, hacer correcciones más agresivas
+          console.log("Error inicial:", parseError);
+          
+          // Buscar objetos JavaScript literales
+          if (jsonContent.includes("const") || jsonContent.includes("let")) {
+            try {
+              // Extraer la variable que contiene el objeto
+              const varMatch = jsonContent.match(/(const|let)\s+(\w+)\s*=\s*({[\s\S]*?});?\s*$/);
+              if (varMatch && varMatch[3]) {
+                fixedJson = varMatch[3];
+              }
+            } catch (e) {
+              console.log("Error al extraer variable:", e);
+            }
+          }
+          
+          // Corregir arrays mal formados
+          if (jsonContent.includes("labels")) {
+            try {
+              const labelsMatch = jsonContent.match(/labels\s*=\s*\[(.*?)\];/s);
+              if (labelsMatch && labelsMatch[1]) {
+                let labelsArray = [];
+                // Extraer etiquetas individuales
+                const labelItems = labelsMatch[1].match(/["'].*?["']/g);
+                if (labelItems) {
+                  labelsArray = labelItems.map(item => item.replace(/^["']|["']$/g, ''));
+                }
+                // Crear un objeto post si no existe
+                post = post || {};
+                post.labels = labelsArray;
+              }
+            } catch (e) {
+              console.log("Error al procesar etiquetas:", e);
+            }
+          }
+          
+          // Si todavía no tenemos un objeto post, intentar crear uno con los datos que se puedan extraer
+          if (!post) {
+            post = {};
+            // Extraer título si existe
+            const titleMatch = jsonContent.match(/"title":\s*"([^"]+)"/);
+            if (titleMatch) post.title = titleMatch[1];
+            
+            // Extraer contenido si existe
+            const contentMatch = jsonContent.match(/"content":\s*"([^"]+)"/);
+            if (contentMatch) post.content = contentMatch[1];
+            
+            // Extraer fecha si existe
+            const dateMatch = jsonContent.match(/"published":\s*"([^"]+)"/);
+            if (dateMatch) post.published = dateMatch[1];
+            
+            statusElement.innerHTML = '<span class="error">JSON corregido con errores ⚠️</span>';
+            statusElement.title = 'Se han hecho correcciones pero pueden haber errores';
+          }
+        }
+        
+        // Validaciones y correcciones adicionales
+        if (!post) post = {};
         if (!post.title) post.title = "Título no encontrado";
         if (!post.published) post.published = new Date().toISOString();
-        if (!post.labels || !Array.isArray(post.labels)) post.labels = [];
+        if (!post.labels || !Array.isArray(post.labels)) {
+          // Intentar extraer etiquetas de una variable separada
+          const labelsVarMatch = jsonContent.match(/const\s+postLabels\s*=\s*\[(.*?)\]/s);
+          if (labelsVarMatch && labelsVarMatch[1]) {
+            try {
+              const labelsText = labelsVarMatch[1]
+                .replace(/\\"/g, '"')
+                .replace(/^["']\s*/, '')
+                .replace(/\s*["']$/, '')
+                .replace(/["']\s*,\s*["']/g, '","');
+              
+              post.labels = labelsText.split('","').map(label => 
+                label.replace(/^["']|["']$/g, '')
+                     .replace(/^\\n\s*/, '')
+                     .replace(/\\.$/, '')
+              );
+            } catch (e) {
+              post.labels = [];
+            }
+          } else {
+            post.labels = [];
+          }
+        }
+        
         if (!post.content) post.content = "<p>Contenido no encontrado</p>";
 
+        // Elimina etiquetas HTML en labels y caracteres de escape
+        post.labels = post.labels.map(label => 
+          label.replace(/<\/?p>/g, "")
+               .replace(/\\n\s*/g, "")
+               .replace(/\\\\/g, "\\")
+               .replace(/^\\"/, "")
+               .replace(/\\"$/, "")
+               .trim()
+        );
+
+        // Mostrar datos en la interfaz
         container.querySelector(".titulo").textContent = post.title;
         container.querySelector(".fecha").textContent = post.published;
         container.querySelector(".etiquetas").textContent = post.labels.join(", ");
         container.querySelector(".content").innerHTML = post.content;
+        
+        // Actualizar el textarea con el JSON correcto
+        container.querySelector(".post-content").value = JSON.stringify(post, null, 2);
+
       } catch (error) {
-        alert("Error al analizar JSON: " + error.message);
+        statusElement.innerHTML = '<span class="error">Error al analizar JSON: ' + error.message + '</span>';
+        console.error("Error completo:", error);
       }
     }
 
@@ -108,15 +290,29 @@
       document.getElementById('status').textContent = "Publicando entradas...";
 
       let totalPublished = 0;
+      let entriesCount = document.querySelectorAll(".post-entry").length;
+      let processedCount = 0;
 
       document.querySelectorAll(".post-entry").forEach(entry => {
-        let title = entry.querySelector(".titulo").textContent || "Sin título";
-        let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
-        let labels = entry.querySelector(".etiquetas").textContent.split(", ") || [];
-        let content = entry.querySelector(".content").innerHTML || "<p>Sin contenido</p>";
+        let jsonContent = entry.querySelector(".post-content").value;
+        let post;
+        
+        try {
+          post = JSON.parse(jsonContent);
+        } catch (e) {
+          alert(`Error al analizar JSON: ${e.message}`);
+          processedCount++;
+          return;
+        }
+        
+        let title = post.title || "Sin título";
+        let rawDate = post.published || new Date().toISOString();
+        let labels = post.labels || [];
+        let content = post.content || "<p>Sin contenido</p>";
 
         if (publishedTitles.has(title)) {
           alert(`El post "${title}" ya fue publicado.`);
+          processedCount++;
           return;
         }
 
@@ -148,15 +344,17 @@
             publishedTitles.add(title);
             entry.remove();
           }
+          processedCount++;
+          
+          if (processedCount === entriesCount) {
+            document.getElementById("status").textContent = `Fueron publicadas ${totalPublished} entradas.`;
+          }
         })
-        .catch(err => alert("Error en la solicitud: " + err.message));
+        .catch(err => {
+          alert("Error en la solicitud: " + err.message);
+          processedCount++;
+        });
       });
-
-      setTimeout(() => {
-        if (totalPublished > 0) {
-          document.getElementById("status").textContent = `Fueron publicadas ${totalPublished} entradas.`;
-        }
-      }, 3000);
     }
   </script>
 </head>
