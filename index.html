@@ -16,7 +16,6 @@
 
     function initClient() {
       document.getElementById('status').textContent = "No has iniciado sesión";
-
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
@@ -31,7 +30,6 @@
           document.getElementById('post-button').style.display = "inline";
         }
       });
-
       document.getElementById('auth-button').disabled = false;
       addTextArea();
     }
@@ -45,7 +43,7 @@
       const div = document.createElement("div");
       div.classList.add("post-entry");
       div.innerHTML = `
-        <textarea class="post-content" rows="5" cols="80" placeholder="Pegar JSON aquí"></textarea>
+        <textarea class="post-content" rows="8" cols="80" placeholder="Pegar código aquí"></textarea>
         <button onclick="pasteContent(this)">Pegar</button>
         <button onclick="removeEntry(this)">Eliminar</button>
         <p><strong>Título:</strong> <span class="titulo"></span></p>
@@ -68,41 +66,46 @@
         let container = button.parentElement;
         let textarea = container.querySelector(".post-content");
         textarea.value = text;
-        processJSON(container);
+        processJSCode(container);
         container.querySelector(".status-msg").textContent = "Código pegado y procesado";
       } catch (err) {
         alert("Error al pegar: " + err.message);
       }
     }
 
-    function processJSON(container) {
-      let text = container.querySelector(".post-content").value;
-      let jsonData;
+    function processJSCode(container) {
+      let code = container.querySelector(".post-content").value;
+      let extractedPost = null;
 
       try {
-        jsonData = JSON.parse(text);
-      } catch (e) {
-        try {
-          text = text.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]"); // Corrección de comas sobrantes
-          jsonData = new Function("return " + text)(); // Evalúa el JSON corregido
-        } catch (error) {
-          alert("Error al analizar JSON. Asegúrate de que está bien formado.");
+        let sanitizedCode = code.replace(/let |const /g, "").replace(/;\s*$/, "");
+        let evaluatedData = new Function(sanitizedCode + "; return this;")();
+
+        for (let key in evaluatedData) {
+          if (evaluatedData[key] && typeof evaluatedData[key] === "object" && evaluatedData[key].kind === "blogger#post") {
+            extractedPost = evaluatedData[key];
+            break;
+          }
+        }
+
+        if (!extractedPost) {
+          alert("No se encontró una entrada válida en el código.");
           return;
         }
+      } catch (e) {
+        alert("Error al analizar el código. Asegúrate de que es válido.");
+        return;
       }
 
-      if (!Array.isArray(jsonData)) jsonData = [jsonData]; // Si no es un array, lo convertimos en uno
-
-      let post = jsonData[0]; // Tomamos el primer post
-      let title = post.title || "Sin título";
-      let publishedDate = post.published || new Date().toISOString();
-      let labels = Array.isArray(post.labels) ? post.labels.join(", ") : "Sin etiquetas";
-      let content = post.content || "Sin contenido";
+      let title = extractedPost.title || "Sin título";
+      let content = extractedPost.content || "Sin contenido";
+      let publishedDate = extractedPost.published || new Date().toISOString();
+      let labels = extractedPost.labels || [];
 
       container.querySelector(".titulo").textContent = title;
       container.querySelector(".fecha").textContent = publishedDate;
-      container.querySelector(".etiquetas").textContent = labels;
-      container.querySelector(".content").innerHTML = content; // Usamos innerHTML para preservar el formato
+      container.querySelector(".etiquetas").textContent = labels.join(", ");
+      container.querySelector(".content").innerHTML = content;
     }
 
     function publishPosts() {
