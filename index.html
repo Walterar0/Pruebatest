@@ -78,15 +78,46 @@
       let extractedPost = null;
 
       try {
-        // Filtra solo objetos válidos
-        let sanitizedCode = code.replace(/let |const /g, "").replace(/;\s*$/, "");
-        let evaluatedData = new Function(sanitizedCode + "; return this;")();
+        // Intenta extraer el objeto postContent directamente
+        if (code.includes("postContent") || code.includes("const post")) {
+          // Elimina caracteres de template literal si existen
+          code = code.replace(/`/g, '"');
+          
+          // Sanitiza el código para una evaluación más segura
+          let sanitizedCode = code.replace(/let |const |var /g, "");
+          
+          // Envoltura para evitar errores de sintaxis
+          sanitizedCode = "try { " + sanitizedCode + " } catch(e) { }; return postContent || post;";
+          
+          try {
+            extractedPost = new Function(sanitizedCode)();
+          } catch (e) {
+            console.error("Error al evaluar como variable:", e);
+          }
+        }
+        
+        // Si no funciona, intenta buscar el objeto en el texto directamente
+        if (!extractedPost) {
+          let match = code.match(/\{[\s\S]*kind[\s\S]*:"blogger#post"[\s\S]*\}/);
+          if (match) {
+            try {
+              // Limpia y evalúa el objeto JSON
+              let jsonString = match[0].replace(/(\w+):/g, '"$1":').replace(/'/g, '"');
+              extractedPost = JSON.parse(jsonString);
+            } catch (e) {
+              console.error("Error al parsear JSON:", e);
+            }
+          }
+        }
 
-        // Busca el objeto de publicación correcto
-        for (let key in evaluatedData) {
-          if (evaluatedData[key] && typeof evaluatedData[key] === "object" && evaluatedData[key].kind === "blogger#post") {
-            extractedPost = evaluatedData[key];
-            break;
+        if (!extractedPost && code.includes("kind")) {
+          // Intenta evaluar el código como si fuera el objeto directamente
+          try {
+            let cleanedCode = "{" + code.substring(code.indexOf("kind")).split("};")[0] + "}";
+            cleanedCode = cleanedCode.replace(/(\w+):/g, '"$1":').replace(/'/g, '"');
+            extractedPost = JSON.parse(cleanedCode);
+          } catch (e) {
+            console.error("Error al extraer objeto:", e);
           }
         }
 
@@ -95,7 +126,7 @@
           return;
         }
       } catch (e) {
-        alert("Error al analizar el código. Asegúrate de que es válido.");
+        alert("Error al analizar el código: " + e.message);
         return;
       }
 
@@ -103,6 +134,12 @@
       let content = extractedPost.content || "Sin contenido";
       let publishedDate = extractedPost.published || new Date().toISOString();
       let labels = extractedPost.labels || [];
+      
+      // Limpia las etiquetas HTML en el título si existen
+      title = title.replace(/<[^>]*>/g, "");
+      
+      // Limpia las etiquetas HTML en las labels si existen
+      labels = labels.map(label => label.replace(/<[^>]*>/g, "").replace(/\.$/, ""));
 
       container.querySelector(".titulo").textContent = title;
       container.querySelector(".fecha").textContent = publishedDate;
@@ -119,11 +156,12 @@
 
       document.getElementById('status').textContent = "Publicando entradas...";
       let totalPublished = 0;
+      let promesas = [];
 
       document.querySelectorAll(".post-entry").forEach(entry => {
         let title = entry.querySelector(".titulo").textContent || "Sin título";
         let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
-        let labels = entry.querySelector(".etiquetas").textContent.split(", ") || [];
+        let labels = entry.querySelector(".etiquetas").textContent.split(", ").filter(label => label.trim() !== "") || [];
         let content = entry.querySelector(".content").innerHTML || "Sin contenido";
 
         if (publishedTitles.has(title)) {
@@ -133,9 +171,9 @@
 
         let localDate = new Date(rawDate);
         if (isNaN(localDate.getTime())) localDate = new Date();
-        let scheduledTime = new Date(localDate.getTime() + (5 * 60 * 60 * 1000)).toISOString();
+        let scheduledTime = new Date(localDate.getTime()).toISOString();
 
-        fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
+        let promesa = fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${accessToken}`,
@@ -154,22 +192,68 @@
         .then(data => {
           if (data.error) {
             alert("Error al publicar: " + JSON.stringify(data.error));
+            return false;
           } else {
             totalPublished++;
             publishedTitles.add(title);
             entry.remove();
+            return true;
           }
         })
-        .catch(err => alert("Error en la solicitud: " + err.message));
+        .catch(err => {
+          alert("Error en la solicitud: " + err.message);
+          return false;
+        });
+        
+        promesas.push(promesa);
       });
 
-      setTimeout(() => {
-        if (totalPublished > 0) {
-          document.getElementById("status").textContent = `Fueron publicadas ${totalPublished} entradas.`;
-        }
-      }, 3000);
+      Promise.all(promesas).then(resultados => {
+        const exitosos = resultados.filter(Boolean).length;
+        document.getElementById("status").textContent = `Fueron publicadas ${exitosos} entradas.`;
+      });
     }
   </script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      line-height: 1.6;
+    }
+    .post-entry {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    .post-content {
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    button {
+      margin: 5px;
+      padding: 8px 12px;
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #3367d6;
+    }
+    .content {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #eee;
+      padding: 10px;
+      margin-top: 5px;
+    }
+    #status {
+      font-weight: bold;
+      margin: 10px 0;
+    }
+  </style>
 </head>
 <body onload="initClient()">
   <h1>Publicaciones Múltiples en Blogger</h1>
