@@ -17,7 +17,6 @@
 
     function initClient() {
       document.getElementById('status').textContent = "No has iniciado sesión";
-
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
@@ -52,7 +51,7 @@
         <p><strong>Título:</strong> <span class="titulo"></span></p>
         <p><strong>Fecha:</strong> <span class="fecha"></span></p>
         <p><strong>Etiquetas:</strong> <span class="etiquetas"></span></p>
-        <p><strong>Contenido:</strong> <span class="content"></span></p>
+        <div class="content"></div>
         <p class="status-msg"></p>
         <hr>
       `;
@@ -70,7 +69,7 @@
         let textarea = container.querySelector(".post-content");
         textarea.value = text;
         extractData(container);
-        container.querySelector(".status-msg").textContent = "Código pegado";
+        container.querySelector(".status-msg").textContent = "Código pegado correctamente.";
       } catch (err) {
         alert("Error al pegar: " + err.message);
       }
@@ -82,10 +81,10 @@
       try {
         let post = JSON.parse(jsonContent);
 
-        container.querySelector(".titulo").textContent = post.title || "No encontrado";
-        container.querySelector(".fecha").textContent = post.published || "No encontrado";
-        container.querySelector(".etiquetas").textContent = post.labels ? post.labels.join(", ") : "No encontrado";
-        container.querySelector(".content").textContent = post.content || "No encontrado";
+        container.querySelector(".titulo").textContent = post.title || "Sin título";
+        container.querySelector(".fecha").textContent = new Date(post.published).toLocaleString() || "Fecha no encontrada";
+        container.querySelector(".etiquetas").textContent = post.labels ? post.labels.join(", ") : "Sin etiquetas";
+        container.querySelector(".content").innerHTML = post.content || "<p>Sin contenido</p>";
       } catch (error) {
         alert("Error al analizar JSON: " + error.message);
       }
@@ -105,8 +104,8 @@
       document.querySelectorAll(".post-entry").forEach(entry => {
         let title = entry.querySelector(".titulo").textContent || "Sin título";
         let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
-        let labels = entry.querySelector(".etiquetas").textContent.split(", ") || [];
-        let content = entry.querySelector(".content").textContent || "Sin contenido";
+        let labels = entry.querySelector(".etiquetas").textContent.split(", ").filter(tag => tag.trim() !== "");
+        let content = entry.querySelector(".content").innerHTML || "<p>Sin contenido</p>";
 
         if (publishedTitles.has(title)) {
           alert(`El post "${title}" ya fue publicado.`);
