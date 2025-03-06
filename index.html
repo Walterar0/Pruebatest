@@ -122,16 +122,23 @@
           }
         }
         
-        // Buscar fecha
-        let publishedDate = customDate ? customDate.toISOString() : new Date().toISOString();
-        let dateMatch = code.match(/published["'\s]*:["'\s]*["']([^"']+)["']/);
-        if (dateMatch && dateMatch[1]) {
-          publishedDate = dateMatch[1].trim();
-        } else if (!customDate) {
-          // Alternativa: buscar cualquier fecha en formato ISO
-          dateMatch = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-          if (dateMatch) {
-            publishedDate = dateMatch[0];
+        // Definir fecha de publicación, priorizando publishDate
+        let publishedDate;
+        if (customDate) {
+          publishedDate = customDate.toISOString();
+        } else {
+          // Buscar fecha en otras partes del código
+          let dateMatch = code.match(/published["'\s]*:["'\s]*["']([^"']+)["']/);
+          if (dateMatch && dateMatch[1]) {
+            publishedDate = dateMatch[1].trim();
+          } else {
+            // Alternativa: buscar cualquier fecha en formato ISO
+            dateMatch = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+            if (dateMatch) {
+              publishedDate = dateMatch[0];
+            } else {
+              publishedDate = new Date().toISOString();
+            }
           }
         }
         
@@ -211,16 +218,24 @@
         let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
         let labels = entry.querySelector(".etiquetas").textContent.split(", ").filter(label => label.trim() !== "") || [];
         let content = entry.querySelector(".content").innerHTML || "Sin contenido";
-        let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
-   if (publishedTitles.has(title)) {
+
+        if (publishedTitles.has(title)) {
           alert(`El post "${title}" ya fue publicado.`);
           return;
         }
 
-        let localDate = new Date(rawDate);
-if (isNaN(localDate.getTime())) localDate = new Date();
-let scheduledTime = new Date(localDate.getTime()).toISOString();
-     
+        // Asegurar que la fecha es válida
+        let scheduledTime = rawDate;
+        try {
+          let localDate = new Date(rawDate);
+          if (!isNaN(localDate.getTime())) {
+            scheduledTime = localDate.toISOString();
+          }
+        } catch (e) {
+          console.error("Error al procesar fecha:", e);
+          scheduledTime = new Date().toISOString();
+        }
+
         let promesa = fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
           method: "POST",
           headers: {
@@ -311,4 +326,4 @@ let scheduledTime = new Date(localDate.getTime()).toISOString();
   <button id="post-button" onclick="publishPosts()" style="display: none;">Publicar Todas</button>
   <div id="post-container"></div>
 </body>
-  </html>
+</html>
