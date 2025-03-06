@@ -76,75 +76,104 @@
     function processJSCode(container) {
       let code = container.querySelector(".post-content").value;
       let extractedPost = null;
-
+      
+      // Intenta extraer información incluso si el código está mal formado
       try {
-        // Intenta extraer el objeto postContent directamente
-        if (code.includes("postContent") || code.includes("const post")) {
-          // Elimina caracteres de template literal si existen
-          code = code.replace(/`/g, '"');
-          
-          // Sanitiza el código para una evaluación más segura
-          let sanitizedCode = code.replace(/let |const |var /g, "");
-          
-          // Envoltura para evitar errores de sintaxis
-          sanitizedCode = "try { " + sanitizedCode + " } catch(e) { }; return postContent || post;";
-          
-          try {
-            extractedPost = new Function(sanitizedCode)();
-          } catch (e) {
-            console.error("Error al evaluar como variable:", e);
-          }
-        }
-        
-        // Si no funciona, intenta buscar el objeto en el texto directamente
-        if (!extractedPost) {
-          let match = code.match(/\{[\s\S]*kind[\s\S]*:"blogger#post"[\s\S]*\}/);
-          if (match) {
-            try {
-              // Limpia y evalúa el objeto JSON
-              let jsonString = match[0].replace(/(\w+):/g, '"$1":').replace(/'/g, '"');
-              extractedPost = JSON.parse(jsonString);
-            } catch (e) {
-              console.error("Error al parsear JSON:", e);
+        // Intenta extraer el título
+        let title = "";
+        let titleMatch = code.match(/title["'\s]*:["'\s]*([^"',\n]+)/);
+        if (titleMatch && titleMatch[1]) {
+          title = titleMatch[1].trim();
+        } else {
+          // Buscar otra forma de título
+          titleMatch = code.match(/postTitle\s*=\s*["']([^"']+)["']/);
+          if (titleMatch && titleMatch[1]) {
+            title = titleMatch[1].trim();
+          } else {
+            // Última opción: buscar cualquier string que parezca un título
+            titleMatch = code.match(/title["'\s]*:[^"']*(["'])([^"']*)\1/);
+            if (titleMatch && titleMatch[2]) {
+              title = titleMatch[2].trim();
             }
           }
         }
-
-        if (!extractedPost && code.includes("kind")) {
-          // Intenta evaluar el código como si fuera el objeto directamente
-          try {
-            let cleanedCode = "{" + code.substring(code.indexOf("kind")).split("};")[0] + "}";
-            cleanedCode = cleanedCode.replace(/(\w+):/g, '"$1":').replace(/'/g, '"');
-            extractedPost = JSON.parse(cleanedCode);
-          } catch (e) {
-            console.error("Error al extraer objeto:", e);
+        
+        // Buscar contenido
+        let content = "";
+        let contentMatch = code.match(/content["'\s]*:["'\s]*`([\s\S]*?)`/);
+        if (contentMatch && contentMatch[1]) {
+          content = contentMatch[1].trim();
+        } else {
+          // Alternativa: buscar contenido entre comillas
+          contentMatch = code.match(/content["'\s]*:[^"']*(["'])([^"']*)\1/);
+          if (contentMatch && contentMatch[2]) {
+            content = contentMatch[2].trim();
           }
         }
-
-        if (!extractedPost) {
-          alert("No se encontró una entrada válida en el código.");
-          return;
+        
+        // Buscar fecha
+        let publishedDate = new Date().toISOString();
+        let dateMatch = code.match(/published["'\s]*:["'\s]*["']([^"']+)["']/);
+        if (dateMatch && dateMatch[1]) {
+          publishedDate = dateMatch[1].trim();
+        } else {
+          // Alternativa: buscar cualquier fecha en formato ISO
+          dateMatch = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+          if (dateMatch) {
+            publishedDate = dateMatch[0];
+          }
         }
+        
+        // Buscar etiquetas
+        let labels = [];
+        let labelsMatch = code.match(/labels["'\s]*:["'\s]*\[([\s\S]*?)\]/);
+        if (labelsMatch && labelsMatch[1]) {
+          // Extrae etiquetas de un array
+          let labelText = labelsMatch[1];
+          let labelMatches = labelText.match(/["']([^"']+)["']/g);
+          if (labelMatches) {
+            labels = labelMatches.map(label => label.replace(/["']/g, "").trim());
+          }
+        } else {
+          // Alternativa: buscar etiquetas en cualquier otro formato
+          labelsMatch = code.match(/postLabels\s*=\s*\[([\s\S]*?)\]/);
+          if (labelsMatch && labelsMatch[1]) {
+            let labelText = labelsMatch[1];
+            let labelMatches = labelText.match(/["']([^"']+)["']/g);
+            if (labelMatches) {
+              labels = labelMatches.map(label => label.replace(/["'<p>]/g, "").trim());
+            }
+          }
+        }
+        
+        // Construir el objeto de post extrayendo partes individuales
+        extractedPost = {
+          title: title || "Sin título",
+          content: content || "Sin contenido",
+          published: publishedDate,
+          labels: labels
+        };
+        
       } catch (e) {
-        alert("Error al analizar el código: " + e.message);
-        return;
+        console.error("Error al analizar código desordenado:", e);
+        
+        // Intento de recuperación extremo: buscar cualquier contenido que parezca útil
+        const title = code.match(/title\s*[:=]\s*["']([^"']+)["']/i);
+        const content = code.match(/content\s*[:=]\s*[`"']([^`"']+)[`"']/i);
+        const date = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+        
+        extractedPost = {
+          title: title ? title[1] : "Título recuperado de emergencia",
+          content: content ? content[1] : "Contenido no encontrado",
+          published: date ? date[0] : new Date().toISOString(),
+          labels: ["Etiqueta recuperada"]
+        };
       }
 
-      let title = extractedPost.title || "Sin título";
-      let content = extractedPost.content || "Sin contenido";
-      let publishedDate = extractedPost.published || new Date().toISOString();
-      let labels = extractedPost.labels || [];
-      
-      // Limpia las etiquetas HTML en el título si existen
-      title = title.replace(/<[^>]*>/g, "");
-      
-      // Limpia las etiquetas HTML en las labels si existen
-      labels = labels.map(label => label.replace(/<[^>]*>/g, "").replace(/\.$/, ""));
-
-      container.querySelector(".titulo").textContent = title;
-      container.querySelector(".fecha").textContent = publishedDate;
-      container.querySelector(".etiquetas").textContent = labels.join(", ");
-      container.querySelector(".content").innerHTML = content;
+      container.querySelector(".titulo").textContent = extractedPost.title || "Sin título";
+      container.querySelector(".fecha").textContent = extractedPost.published || new Date().toISOString();
+      container.querySelector(".etiquetas").textContent = (extractedPost.labels || []).join(", ");
+      container.querySelector(".content").innerHTML = extractedPost.content || "Sin contenido";
     }
 
     function publishPosts() {
