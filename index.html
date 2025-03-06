@@ -211,16 +211,16 @@
         let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
         let labels = entry.querySelector(".etiquetas").textContent.split(", ").filter(label => label.trim() !== "") || [];
         let content = entry.querySelector(".content").innerHTML || "Sin contenido";
-
-        if (publishedTitles.has(title)) {
+        let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
+   if (publishedTitles.has(title)) {
           alert(`El post "${title}" ya fue publicado.`);
           return;
         }
 
         let localDate = new Date(rawDate);
-        if (isNaN(localDate.getTime())) localDate = new Date();
-        let scheduledTime = new Date(localDate.getTime()).toISOString();
-
+if (isNaN(localDate.getTime())) localDate = new Date();
+let scheduledTime = new Date(localDate.getTime()).toISOString();
+     
         let promesa = fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
           method: "POST",
           headers: {
