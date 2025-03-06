@@ -113,12 +113,12 @@
         let content = "";
         let contentMatch = code.match(/content["'\s]*:["'\s]*`([\s\S]*?)`/);
         if (contentMatch && contentMatch[1]) {
-          content = contentMatch[1].trim();
+          content = contentMatch[1].trim().replace(/\n/g, "<br>");
         } else {
           // Alternativa: buscar contenido entre comillas
           contentMatch = code.match(/content["'\s]*:[^"']*(["'])([^"']*)\1/);
           if (contentMatch && contentMatch[2]) {
-            content = contentMatch[2].trim();
+            content = contentMatch[2].trim().replace(/\n/g, "<br>");
           }
         }
         
@@ -190,7 +190,7 @@
         
         extractedPost = {
           title: title ? title[1] : "Título recuperado de emergencia",
-          content: content ? content[1] : "Contenido no encontrado",
+          content: content ? content[1].replace(/\n/g, "<br>") : "Contenido no encontrado",
           published: date,
           labels: ["Etiqueta recuperada"]
         };
