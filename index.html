@@ -79,6 +79,17 @@
       
       // Intenta extraer información incluso si el código está mal formado
       try {
+        // Buscar fecha de publicación directa en variable publishDate
+        let customDate = null;
+        let publishDateMatch = code.match(/let\s+publishDate\s*=\s*new\s+Date\(['"](.*?)['"]\)/);
+        if (publishDateMatch && publishDateMatch[1]) {
+          customDate = new Date(publishDateMatch[1]);
+          if (!isNaN(customDate.getTime())) {
+            // La fecha es válida
+            console.log("Fecha encontrada en variable publishDate:", customDate.toISOString());
+          }
+        }
+        
         // Intenta extraer el título
         let title = "";
         let titleMatch = code.match(/title["'\s]*:["'\s]*([^"',\n]+)/);
@@ -112,11 +123,11 @@
         }
         
         // Buscar fecha
-        let publishedDate = new Date().toISOString();
+        let publishedDate = customDate ? customDate.toISOString() : new Date().toISOString();
         let dateMatch = code.match(/published["'\s]*:["'\s]*["']([^"']+)["']/);
         if (dateMatch && dateMatch[1]) {
           publishedDate = dateMatch[1].trim();
-        } else {
+        } else if (!customDate) {
           // Alternativa: buscar cualquier fecha en formato ISO
           dateMatch = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
           if (dateMatch) {
@@ -160,12 +171,20 @@
         // Intento de recuperación extremo: buscar cualquier contenido que parezca útil
         const title = code.match(/title\s*[:=]\s*["']([^"']+)["']/i);
         const content = code.match(/content\s*[:=]\s*[`"']([^`"']+)[`"']/i);
-        const date = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+        const publishDateVar = code.match(/let\s+publishDate\s*=\s*new\s+Date\(['"](.*?)['"]\)/);
+        let date = null;
+        
+        if (publishDateVar && publishDateVar[1]) {
+          date = new Date(publishDateVar[1]).toISOString();
+        } else {
+          date = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+          date = date ? date[0] : new Date().toISOString();
+        }
         
         extractedPost = {
           title: title ? title[1] : "Título recuperado de emergencia",
           content: content ? content[1] : "Contenido no encontrado",
-          published: date ? date[0] : new Date().toISOString(),
+          published: date,
           labels: ["Etiqueta recuperada"]
         };
       }
@@ -292,4 +311,4 @@
   <button id="post-button" onclick="publishPosts()" style="display: none;">Publicar Todas</button>
   <div id="post-container"></div>
 </body>
-</html>
+  </html>
