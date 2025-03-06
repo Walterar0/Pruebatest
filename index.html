@@ -7,7 +7,6 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     const CLIENT_ID = "338010031407-a0qku90nm9atgjsgirdg9i40av85ptbn.apps.googleusercontent.com";
-    const API_KEY = "AIzaSyBkROi9aAkTcWaZwMa05RG7dFPbwdrZIok";
     const BLOG_ID = "6423620772115300042";
     const SCOPES = "https://www.googleapis.com/auth/blogger";
     
@@ -69,25 +68,41 @@
         let container = button.parentElement;
         let textarea = container.querySelector(".post-content");
         textarea.value = text;
-        extractData(container);
-        container.querySelector(".status-msg").textContent = "Código pegado";
+        processJSON(container);
+        container.querySelector(".status-msg").textContent = "Código pegado y procesado";
       } catch (err) {
         alert("Error al pegar: " + err.message);
       }
     }
 
-    function extractData(container) {
-      let htmlContent = container.querySelector(".post-content").value;
+    function processJSON(container) {
+      let text = container.querySelector(".post-content").value;
+      let jsonData;
 
-      let regexTitle = /"title":\s*"([^"]+)"/;
-      let regexDate = /"published":\s*"([^"]+)"/;
-      let regexLabels = /"labels":\s*\[([^\]]+)\]/;
-      let regexContent = /"content":\s*"([^"]+)"/;
+      try {
+        jsonData = JSON.parse(text);
+      } catch (e) {
+        try {
+          text = text.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]"); // Corrección de comas sobrantes
+          jsonData = new Function("return " + text)(); // Evalúa el JSON corregido
+        } catch (error) {
+          alert("Error al analizar JSON. Asegúrate de que está bien formado.");
+          return;
+        }
+      }
 
-      container.querySelector(".titulo").textContent = htmlContent.match(regexTitle)?.[1] || "No encontrado";
-      container.querySelector(".fecha").textContent = htmlContent.match(regexDate)?.[1] || "No encontrado";
-      container.querySelector(".etiquetas").textContent = htmlContent.match(regexLabels)?.[1].replace(/"/g, '') || "No encontrado";
-      container.querySelector(".content").textContent = htmlContent.match(regexContent)?.[1] || "No encontrado";
+      if (!Array.isArray(jsonData)) jsonData = [jsonData]; // Si no es un array, lo convertimos en uno
+
+      let post = jsonData[0]; // Tomamos el primer post
+      let title = post.title || "Sin título";
+      let publishedDate = post.published || new Date().toISOString();
+      let labels = Array.isArray(post.labels) ? post.labels.join(", ") : "Sin etiquetas";
+      let content = post.content || "Sin contenido";
+
+      container.querySelector(".titulo").textContent = title;
+      container.querySelector(".fecha").textContent = publishedDate;
+      container.querySelector(".etiquetas").textContent = labels;
+      container.querySelector(".content").innerHTML = content; // Usamos innerHTML para preservar el formato
     }
 
     function publishPosts() {
@@ -97,21 +112,20 @@
         return;
       }
 
-      document.getElementById('status').textContent = "Botón presionado... Publicando entradas.";
-
+      document.getElementById('status').textContent = "Publicando entradas...";
       let totalPublished = 0;
 
       document.querySelectorAll(".post-entry").forEach(entry => {
         let title = entry.querySelector(".titulo").textContent || "Sin título";
         let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
         let labels = entry.querySelector(".etiquetas").textContent.split(", ") || [];
-        let content = entry.querySelector(".content").textContent || "Sin contenido";
+        let content = entry.querySelector(".content").innerHTML || "Sin contenido";
 
         if (publishedTitles.has(title)) {
           alert(`El post "${title}" ya fue publicado.`);
           return;
         }
-        
+
         let localDate = new Date(rawDate);
         if (isNaN(localDate.getTime())) localDate = new Date();
         let scheduledTime = new Date(localDate.getTime() + (5 * 60 * 60 * 1000)).toISOString();
