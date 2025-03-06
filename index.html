@@ -78,9 +78,11 @@
       let extractedPost = null;
 
       try {
+        // Filtra solo objetos válidos
         let sanitizedCode = code.replace(/let |const /g, "").replace(/;\s*$/, "");
         let evaluatedData = new Function(sanitizedCode + "; return this;")();
 
+        // Busca el objeto de publicación correcto
         for (let key in evaluatedData) {
           if (evaluatedData[key] && typeof evaluatedData[key] === "object" && evaluatedData[key].kind === "blogger#post") {
             extractedPost = evaluatedData[key];
