@@ -49,7 +49,8 @@
         <p><strong>Título:</strong> <span class="titulo"></span></p>
         <p><strong>Fecha:</strong> <span class="fecha"></span></p>
         <p><strong>Etiquetas:</strong> <span class="etiquetas"></span></p>
-        <p><strong>Contenido:</strong> <span class="content"></span></p>
+        <p><strong>Contenido:</strong> <span class="content-preview"></span></p>
+        <div class="content" style="display:none;"></div>
         <p class="status-msg"></p>
         <hr>
       `;
@@ -75,61 +76,86 @@
 
     function processJSCode(container) {
       let code = container.querySelector(".post-content").value;
+      
+      // Preprocesamiento para manejar <br> como saltos de línea reales
+      code = code.replace(/<br>/g, "\n");
+      
       let extractedPost = null;
       
-      // Intenta extraer información incluso si el código está mal formado
       try {
-        // Buscar fecha de publicación directa en variable publishDate
+        // Buscar fecha de publicación en variable publishDate
         let customDate = null;
         let publishDateMatch = code.match(/let\s+publishDate\s*=\s*new\s+Date\(['"](.*?)['"]\)/);
         if (publishDateMatch && publishDateMatch[1]) {
           customDate = new Date(publishDateMatch[1]);
           if (!isNaN(customDate.getTime())) {
-            // La fecha es válida
             console.log("Fecha encontrada en variable publishDate:", customDate.toISOString());
           }
         }
         
-        // Buscar scheduledTime si existe
-        let scheduledTimeMatch = code.match(/let\s+scheduledTime\s*=\s*[\w.]+\.toISOString\(\)/);
-        if (scheduledTimeMatch && customDate) {
-          // Si encontramos scheduledTime y ya tenemos customDate, usamos customDate
-          console.log("Se encontró scheduledTime, usando la fecha de publishDate");
-        }
+        // Buscar objeto de artículo completo
+        // Usamos una expresión regular más robusta para capturar el objeto incluso con <br>
+        const articleRegex = /const\s+(\w+)\s*=\s*\{[\s\S]*?"kind"\s*:\s*"blogger#post"[\s\S]*?\};/;
+        let articleMatch = code.match(articleRegex);
         
-        // Comprobar si hay un objeto de artículo completo
-        let articleMatch = code.match(/const\s+(\w+)\s*=\s*\{[\s\S]*?"kind"\s*:\s*"blogger#post"[\s\S]*?\}/);
         if (articleMatch) {
-          console.log("Encontrado objeto de artículo completo:", articleMatch[1]);
+          console.log("Encontrado objeto de artículo completo");
           
-          // Extraer título del objeto
+          // Extraer título
           let titleMatch = code.match(/"title"\s*:\s*"([^"]+)"/);
           let title = titleMatch ? titleMatch[1] : "";
           
-          // Extraer contenido del objeto
-          let contentMatch = code.match(/"content"\s*:\s*"([\s\S]*?)(?<!\\)"/);
+          // Extraer contenido - manejo especial
+          let contentMatch = /"content"\s*:\s*"([\s\S]*?)(?<!\\)",/.exec(code);
           let content = "";
+          
           if (contentMatch && contentMatch[1]) {
-            // Eliminar secuencias de escape
+            // Reemplazar secuencias de escape
             content = contentMatch[1]
               .replace(/\\"/g, '"')
               .replace(/\\n/g, "\n")
               .replace(/\\t/g, "\t")
               .replace(/\\\\/g, "\\");
+          } else {
+            // Intento alternativo para extraer contenido
+            const contentStart = code.indexOf('"content": "');
+            if (contentStart !== -1) {
+              let endQuotePos = -1;
+              let searchPos = contentStart + 12; // Longitud de '"content": "'
+              
+              while (searchPos < code.length) {
+                if (code[searchPos] === '"' && code[searchPos-1] !== '\\') {
+                  endQuotePos = searchPos;
+                  break;
+                }
+                searchPos++;
+              }
+              
+              if (endQuotePos !== -1) {
+                content = code.substring(contentStart + 12, endQuotePos)
+                  .replace(/\\"/g, '"')
+                  .replace(/\\n/g, "\n")
+                  .replace(/\\t/g, "\t")
+                  .replace(/\\\\/g, "\\");
+              }
+            }
           }
           
-          // Extraer fecha publicada del objeto
+          // Extraer fecha publicada
           let publishedMatch = code.match(/"published"\s*:\s*"([^"]+)"/);
           let published = publishedMatch ? publishedMatch[1] : "";
           if (!published && customDate) {
             published = customDate.toISOString();
           }
           
-          // Extraer etiquetas del objeto
-          let labelsMatch = code.match(/"labels"\s*:\s*\[([\s\S]*?)\]/);
+          // Extraer etiquetas - mejorado para manejar múltiples líneas
           let labels = [];
+          const labelsRegex = /"labels"\s*:\s*\[([\s\S]*?)\]/;
+          let labelsMatch = code.match(labelsRegex);
+          
           if (labelsMatch && labelsMatch[1]) {
-            let labelMatches = labelsMatch[1].match(/"([^"]+)"/g);
+            // Capturar todas las etiquetas entre comillas
+            const labelMatches = labelsMatch[1].match(/"([^"]+)"/g);
             if (labelMatches) {
               labels = labelMatches.map(label => label.replace(/"/g, "").trim());
             }
@@ -142,118 +168,81 @@
             labels: labels
           };
         } else {
-          // Si no hay objeto de artículo, buscar componentes individuales como antes
-          // Intenta extraer el título
-          let title = "";
-          let titleMatch = code.match(/title["'\s]*:["'\s]*([^"',\n]+)/);
-          if (titleMatch && titleMatch[1]) {
-            title = titleMatch[1].trim();
-          } else {
-            // Buscar otra forma de título
-            titleMatch = code.match(/postTitle\s*=\s*["']([^"']+)["']/);
-            if (titleMatch && titleMatch[1]) {
-              title = titleMatch[1].trim();
-            } else {
-              // Última opción: buscar cualquier string que parezca un título
-              titleMatch = code.match(/title["'\s]*:[^"']*(["'])([^"']*)\1/);
-              if (titleMatch && titleMatch[2]) {
-                title = titleMatch[2].trim();
-              }
-            }
-          }
+          // Buscar componentes individuales si no se encuentra el objeto completo
           
-          // Buscar contenido
-          let content = "";
-          let contentMatch = code.match(/content["'\s]*:["'\s]*`([\s\S]*?)`/);
-          if (contentMatch && contentMatch[1]) {
-            content = contentMatch[1].trim().replace(/\n/g, "<br>");
-          } else {
-            // Alternativa: buscar contenido entre comillas
-            contentMatch = code.match(/content["'\s]*:[^"']*(["'])([^"']*)\1/);
-            if (contentMatch && contentMatch[2]) {
-              content = contentMatch[2].trim().replace(/\n/g, "<br>");
-            }
-          }
-          
-          // Definir fecha de publicación, priorizando publishDate
-          let publishedDate;
-          if (customDate) {
-            publishedDate = customDate.toISOString();
-          } else {
-            // Buscar fecha en otras partes del código
-            let dateMatch = code.match(/published["'\s]*:["'\s]*["']([^"']+)["']/);
-            if (dateMatch && dateMatch[1]) {
-              publishedDate = dateMatch[1].trim();
-            } else {
-              // Alternativa: buscar cualquier fecha en formato ISO
-              dateMatch = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-              if (dateMatch) {
-                publishedDate = dateMatch[0];
-              } else {
-                publishedDate = new Date().toISOString();
-              }
-            }
-          }
-          
-          // Buscar etiquetas - revisar postLabels primero
+          // Buscar postLabels (formato alternativo)
           let labels = [];
-          let postLabelsMatch = code.match(/postLabels\s*=\s*\[([\s\S]*?)\]/);
+          let postLabelsMatch = code.match(/const\s+postLabels\s*=\s*\[([\s\S]*?)\];/);
+          
           if (postLabelsMatch && postLabelsMatch[1]) {
-            let labelText = postLabelsMatch[1];
-            let labelMatches = labelText.match(/["']([^"']+)["']/g);
+            const labelsText = postLabelsMatch[1];
+            const labelMatches = labelsText.match(/["']([^"']+)["']/g);
             if (labelMatches) {
               labels = labelMatches.map(label => 
                 label.replace(/["'<p>\\]/g, "").trim()
               );
             }
-          } else {
-            // Si no hay postLabels, buscar etiquetas en formato normal
-            let labelsMatch = code.match(/labels["'\s]*:["'\s]*\[([\s\S]*?)\]/);
-            if (labelsMatch && labelsMatch[1]) {
-              let labelText = labelsMatch[1];
-              let labelMatches = labelText.match(/["']([^"']+)["']/g);
-              if (labelMatches) {
-                labels = labelMatches.map(label => label.replace(/["']/g, "").trim());
-              }
-            }
           }
           
+          // Última alternativa: búsqueda de emergencia
+          const title = code.match(/title\s*[:=]\s*["']([^"']+)["']/i);
+          const content = code.match(/content\s*[:=]\s*[`"']([^`"']+)[`"']/i);
+          
           extractedPost = {
-            title: title || "Sin título",
-            content: content || "Sin contenido",
-            published: publishedDate,
-            labels: labels
+            title: title ? title[1] : "Título no encontrado",
+            content: content ? content[1] : "Contenido no encontrado",
+            published: customDate ? customDate.toISOString() : new Date().toISOString(),
+            labels: labels.length > 0 ? labels : ["Etiqueta recuperada"]
           };
         }
-        
       } catch (e) {
-        console.error("Error al analizar código desordenado:", e);
+        console.error("Error al analizar código:", e);
         
-        // Intento de recuperación extremo: buscar cualquier contenido que parezca útil
-        const title = code.match(/title\s*[:=]\s*["']([^"']+)["']/i);
-        const content = code.match(/content\s*[:=]\s*[`"']([^`"']+)[`"']/i);
-        const publishDateVar = code.match(/let\s+publishDate\s*=\s*new\s+Date\(['"](.*?)['"]\)/);
-        let date = null;
-        
-        if (publishDateVar && publishDateVar[1]) {
-          date = new Date(publishDateVar[1]).toISOString();
-        } else {
-          date = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-          date = date ? date[0] : new Date().toISOString();
-        }
-        
+        // Recuperación de emergencia
         extractedPost = {
-          title: title ? title[1] : "Título recuperado de emergencia",
-          content: content ? content[1].replace(/\n/g, "<br>") : "Contenido no encontrado",
-          published: date,
-          labels: ["Etiqueta recuperada"]
+          title: "Error en procesamiento",
+          content: "No se pudo procesar el contenido correctamente",
+          published: new Date().toISOString(),
+          labels: ["Error"]
         };
       }
 
-      container.querySelector(".titulo").textContent = extractedPost.title || "Sin título";
-      container.querySelector(".fecha").textContent = extractedPost.published || new Date().toISOString();
-      container.querySelector(".etiquetas").textContent = (extractedPost.labels || []).join(", ");
-      container.querySelector(".content").innerHTML = extractedPost.content || "Sin contenido";
+      // Mostrar la información extraída
+      container.querySelector(".titulo").textContent = extractedPost.title;
+      container.querySelector(".fecha").textContent = extractedPost.published;
+      container.querySelector(".etiquetas").textContent = extractedPost.labels.join(", ");
+      
+      // Guardar el contenido completo oculto
+      container.querySelector(".content").innerHTML = extractedPost.content;
+      
+      // Mostrar vista previa del contenido (primeros 200 caracteres)
+      let contentPreview = extractedPost.content;
+      if (contentPreview.length > 200) {
+        contentPreview = contentPreview.substring(0, 200) + "...";
+      }
+      container.querySelector(".content-preview").innerHTML = contentPreview;
+      
+      // Añadir botón para ver contenido completo
+      if (!container.querySelector(".toggle-content")) {
+        const toggleBtn = document.createElement("button");
+        toggleBtn.className = "toggle-content";
+        toggleBtn.textContent = "Ver contenido completo";
+        toggleBtn.onclick = function() {
+          const contentEl = container.querySelector(".content");
+          const previewEl = container.querySelector(".content-preview").parentElement;
+          
+          if (contentEl.style.display === "none") {
+            contentEl.style.display = "block";
+            previewEl.style.display = "none";
+            this.textContent = "Ver vista previa";
+          } else {
+            contentEl.style.display = "none";
+            previewEl.style.display = "block";
+            this.textContent = "Ver contenido completo";
+          }
+        };
+        container.insertBefore(toggleBtn, container.querySelector(".status-msg"));
+      }
     }
 
     function publishPosts() {
@@ -336,16 +325,24 @@
       font-family: Arial, sans-serif;
       margin: 20px;
       line-height: 1.6;
+      color: #333;
+      background-color: #f7f9fc;
     }
     .post-entry {
       margin-bottom: 20px;
       padding: 15px;
       border: 1px solid #ddd;
       border-radius: 5px;
+      background-color: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     .post-content {
       width: 100%;
       margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 8px;
+      font-family: monospace;
     }
     button {
       margin: 5px;
@@ -355,29 +352,52 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      transition: background-color 0.3s;
     }
     button:hover {
       background-color: #3367d6;
     }
-    .content {
+    .content, .content-preview {
       max-height: 200px;
       overflow-y: auto;
       border: 1px solid #eee;
       padding: 10px;
       margin-top: 5px;
+      background-color: #f9f9f9;
+      border-radius: 4px;
     }
     #status {
       font-weight: bold;
       margin: 10px 0;
+      padding: 10px;
+      background-color: #e8f0fe;
+      border-radius: 4px;
+      text-align: center;
+    }
+    h1 {
+      color: #4285f4;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .toggle-content {
+      background-color: #34a853;
+    }
+    .toggle-content:hover {
+      background-color: #2e8b57;
     }
   </style>
 </head>
 <body onload="initClient()">
   <h1>Publicaciones Múltiples en Blogger</h1>
   <p id="status"></p>
-  <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
-  <button id="add-post" onclick="addTextArea()">Añadir Publicación</button>
-  <button id="post-button" onclick="publishPosts()" style="display: none;">Publicar Todas</button>
+  <div style="text-align: center; margin-bottom: 20px;">
+    <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
+    <button id="add-post" onclick="addTextArea()">Añadir Publicación</button>
+    <button id="post-button" onclick="publishPosts()" style="display: none;">Publicar Todas</button>
+  </div>
   <div id="post-container"></div>
+  <footer style="text-align: center; margin-top: 30px; color: #666; font-size: 0.9em;">
+    Herramienta de publicación múltiple para Blogger
+  </footer>
 </body>
-  </html>
+</html>
