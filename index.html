@@ -90,87 +90,141 @@
           }
         }
         
-        // Intenta extraer el título
-        let title = "";
-        let titleMatch = code.match(/title["'\s]*:["'\s]*([^"',\n]+)/);
-        if (titleMatch && titleMatch[1]) {
-          title = titleMatch[1].trim();
+        // Buscar scheduledTime si existe
+        let scheduledTimeMatch = code.match(/let\s+scheduledTime\s*=\s*[\w.]+\.toISOString\(\)/);
+        if (scheduledTimeMatch && customDate) {
+          // Si encontramos scheduledTime y ya tenemos customDate, usamos customDate
+          console.log("Se encontró scheduledTime, usando la fecha de publishDate");
+        }
+        
+        // Comprobar si hay un objeto de artículo completo
+        let articleMatch = code.match(/const\s+(\w+)\s*=\s*\{[\s\S]*?"kind"\s*:\s*"blogger#post"[\s\S]*?\}/);
+        if (articleMatch) {
+          console.log("Encontrado objeto de artículo completo:", articleMatch[1]);
+          
+          // Extraer título del objeto
+          let titleMatch = code.match(/"title"\s*:\s*"([^"]+)"/);
+          let title = titleMatch ? titleMatch[1] : "";
+          
+          // Extraer contenido del objeto
+          let contentMatch = code.match(/"content"\s*:\s*"([\s\S]*?)(?<!\\)"/);
+          let content = "";
+          if (contentMatch && contentMatch[1]) {
+            // Eliminar secuencias de escape
+            content = contentMatch[1]
+              .replace(/\\"/g, '"')
+              .replace(/\\n/g, "\n")
+              .replace(/\\t/g, "\t")
+              .replace(/\\\\/g, "\\");
+          }
+          
+          // Extraer fecha publicada del objeto
+          let publishedMatch = code.match(/"published"\s*:\s*"([^"]+)"/);
+          let published = publishedMatch ? publishedMatch[1] : "";
+          if (!published && customDate) {
+            published = customDate.toISOString();
+          }
+          
+          // Extraer etiquetas del objeto
+          let labelsMatch = code.match(/"labels"\s*:\s*\[([\s\S]*?)\]/);
+          let labels = [];
+          if (labelsMatch && labelsMatch[1]) {
+            let labelMatches = labelsMatch[1].match(/"([^"]+)"/g);
+            if (labelMatches) {
+              labels = labelMatches.map(label => label.replace(/"/g, "").trim());
+            }
+          }
+          
+          extractedPost = {
+            title: title || "Sin título",
+            content: content || "Sin contenido",
+            published: published || new Date().toISOString(),
+            labels: labels
+          };
         } else {
-          // Buscar otra forma de título
-          titleMatch = code.match(/postTitle\s*=\s*["']([^"']+)["']/);
+          // Si no hay objeto de artículo, buscar componentes individuales como antes
+          // Intenta extraer el título
+          let title = "";
+          let titleMatch = code.match(/title["'\s]*:["'\s]*([^"',\n]+)/);
           if (titleMatch && titleMatch[1]) {
             title = titleMatch[1].trim();
           } else {
-            // Última opción: buscar cualquier string que parezca un título
-            titleMatch = code.match(/title["'\s]*:[^"']*(["'])([^"']*)\1/);
-            if (titleMatch && titleMatch[2]) {
-              title = titleMatch[2].trim();
-            }
-          }
-        }
-        
-        // Buscar contenido
-        let content = "";
-        let contentMatch = code.match(/content["'\s]*:["'\s]*`([\s\S]*?)`/);
-        if (contentMatch && contentMatch[1]) {
-          content = contentMatch[1].trim().replace(/\n/g, "<br>");
-        } else {
-          // Alternativa: buscar contenido entre comillas
-          contentMatch = code.match(/content["'\s]*:[^"']*(["'])([^"']*)\1/);
-          if (contentMatch && contentMatch[2]) {
-            content = contentMatch[2].trim().replace(/\n/g, "<br>");
-          }
-        }
-        
-        // Definir fecha de publicación, priorizando publishDate
-        let publishedDate;
-        if (customDate) {
-          publishedDate = customDate.toISOString();
-        } else {
-          // Buscar fecha en otras partes del código
-          let dateMatch = code.match(/published["'\s]*:["'\s]*["']([^"']+)["']/);
-          if (dateMatch && dateMatch[1]) {
-            publishedDate = dateMatch[1].trim();
-          } else {
-            // Alternativa: buscar cualquier fecha en formato ISO
-            dateMatch = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-            if (dateMatch) {
-              publishedDate = dateMatch[0];
+            // Buscar otra forma de título
+            titleMatch = code.match(/postTitle\s*=\s*["']([^"']+)["']/);
+            if (titleMatch && titleMatch[1]) {
+              title = titleMatch[1].trim();
             } else {
-              publishedDate = new Date().toISOString();
+              // Última opción: buscar cualquier string que parezca un título
+              titleMatch = code.match(/title["'\s]*:[^"']*(["'])([^"']*)\1/);
+              if (titleMatch && titleMatch[2]) {
+                title = titleMatch[2].trim();
+              }
             }
           }
-        }
-        
-        // Buscar etiquetas
-        let labels = [];
-        let labelsMatch = code.match(/labels["'\s]*:["'\s]*\[([\s\S]*?)\]/);
-        if (labelsMatch && labelsMatch[1]) {
-          // Extrae etiquetas de un array
-          let labelText = labelsMatch[1];
-          let labelMatches = labelText.match(/["']([^"']+)["']/g);
-          if (labelMatches) {
-            labels = labelMatches.map(label => label.replace(/["']/g, "").trim());
+          
+          // Buscar contenido
+          let content = "";
+          let contentMatch = code.match(/content["'\s]*:["'\s]*`([\s\S]*?)`/);
+          if (contentMatch && contentMatch[1]) {
+            content = contentMatch[1].trim().replace(/\n/g, "<br>");
+          } else {
+            // Alternativa: buscar contenido entre comillas
+            contentMatch = code.match(/content["'\s]*:[^"']*(["'])([^"']*)\1/);
+            if (contentMatch && contentMatch[2]) {
+              content = contentMatch[2].trim().replace(/\n/g, "<br>");
+            }
           }
-        } else {
-          // Alternativa: buscar etiquetas en cualquier otro formato
-          labelsMatch = code.match(/postLabels\s*=\s*\[([\s\S]*?)\]/);
-          if (labelsMatch && labelsMatch[1]) {
-            let labelText = labelsMatch[1];
+          
+          // Definir fecha de publicación, priorizando publishDate
+          let publishedDate;
+          if (customDate) {
+            publishedDate = customDate.toISOString();
+          } else {
+            // Buscar fecha en otras partes del código
+            let dateMatch = code.match(/published["'\s]*:["'\s]*["']([^"']+)["']/);
+            if (dateMatch && dateMatch[1]) {
+              publishedDate = dateMatch[1].trim();
+            } else {
+              // Alternativa: buscar cualquier fecha en formato ISO
+              dateMatch = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+              if (dateMatch) {
+                publishedDate = dateMatch[0];
+              } else {
+                publishedDate = new Date().toISOString();
+              }
+            }
+          }
+          
+          // Buscar etiquetas - revisar postLabels primero
+          let labels = [];
+          let postLabelsMatch = code.match(/postLabels\s*=\s*\[([\s\S]*?)\]/);
+          if (postLabelsMatch && postLabelsMatch[1]) {
+            let labelText = postLabelsMatch[1];
             let labelMatches = labelText.match(/["']([^"']+)["']/g);
             if (labelMatches) {
-              labels = labelMatches.map(label => label.replace(/["'<p>]/g, "").trim());
+              labels = labelMatches.map(label => 
+                label.replace(/["'<p>\\]/g, "").trim()
+              );
+            }
+          } else {
+            // Si no hay postLabels, buscar etiquetas en formato normal
+            let labelsMatch = code.match(/labels["'\s]*:["'\s]*\[([\s\S]*?)\]/);
+            if (labelsMatch && labelsMatch[1]) {
+              let labelText = labelsMatch[1];
+              let labelMatches = labelText.match(/["']([^"']+)["']/g);
+              if (labelMatches) {
+                labels = labelMatches.map(label => label.replace(/["']/g, "").trim());
+              }
             }
           }
+          
+          extractedPost = {
+            title: title || "Sin título",
+            content: content || "Sin contenido",
+            published: publishedDate,
+            labels: labels
+          };
         }
-        
-        // Construir el objeto de post extrayendo partes individuales
-        extractedPost = {
-          title: title || "Sin título",
-          content: content || "Sin contenido",
-          published: publishedDate,
-          labels: labels
-        };
         
       } catch (e) {
         console.error("Error al analizar código desordenado:", e);
@@ -326,4 +380,4 @@
   <button id="post-button" onclick="publishPosts()" style="display: none;">Publicar Todas</button>
   <div id="post-container"></div>
 </body>
-</html>
+  </html>
