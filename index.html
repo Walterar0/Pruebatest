@@ -359,7 +359,7 @@
         .filter(l => l) 
         .join(", ")
         .replace(/,\s*,/g, ", "); 
-      
+
       // Guardar el contenido completo oculto
       container.querySelector(".content-full").innerHTML = extractedPost.content;
       
@@ -449,6 +449,8 @@
         .then(data => {
           if (data.error) {
             alert("Error al publicar: " + JSON.stringify(data.error));
+            entry.querySelector(".status-msg").textContent = "Error al publicar: " + JSON.stringify(data.error.message);
+            entry.querySelector(".status-msg").style.color = "red";
             return false;
           } else {
             totalPublished++;
@@ -460,6 +462,8 @@
         })
         .catch(err => {
           alert("Error en la solicitud: " + err.message);
+          entry.querySelector(".status-msg").textContent = "Error en la solicitud: " + err.message;
+          entry.querySelector(".status-msg").style.color = "red";
           return false;
         });
         
