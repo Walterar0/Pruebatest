@@ -81,322 +81,227 @@
       container.querySelector(".status-msg").textContent = "Código procesado";
     }
 
-    function processJSCode(container) {
-      let code = container.querySelector(".post-content").value;
-      
-      // Preprocesamiento para manejar <br> como saltos de línea reales
-      code = code.replace(/<br>/g, "\n");
-      
-      let extractedPost = {
-        title: "Sin título",
-        content: "Sin contenido",
-        published: new Date().toISOString(),
-        labels: []
-      };
-      
+    // Optimiza la función processJSCode para asegurar que detecte el formato postContent_maraton_cine_casa_epico
+function processJSCode(container) {
+  let code = container.querySelector(".post-content").value;
+  
+  // Preprocesamiento para manejar <br> como saltos de línea reales
+  code = code.replace(/<br>/g, "\n");
+  
+  let extractedPost = {
+    title: "Sin título",
+    content: "Sin contenido",
+    published: new Date().toISOString(),
+    labels: []
+  };
+  
+  try {
+    // PASO 1: Extraer la fecha de publishDate (prioridad máxima)
+    let customDate = null;
+    let publishDateMatch = code.match(/let\s+publishDate\s*=\s*new\s+Date\(['"](.*?)['"]\)/);
+    if (publishDateMatch && publishDateMatch[1]) {
       try {
-        // PASO 1: Extraer la fecha de publishDate (prioridad máxima)
-        let customDate = null;
-        let publishDateMatch = code.match(/let\s+publishDate\s*=\s*new\s+Date\(['"](.*?)['"]\)/);
-        if (publishDateMatch && publishDateMatch[1]) {
+        customDate = new Date(publishDateMatch[1]);
+        if (!isNaN(customDate.getTime())) {
+          console.log("✓ Fecha encontrada en publishDate:", customDate.toISOString());
+          extractedPost.published = customDate.toISOString();
+        }
+      } catch(e) {
+        console.error("Error al procesar fecha en publishDate:", e);
+      }
+    }
+    
+    // PASO 2: Buscar scheduledTime como respaldo
+    if (!customDate) {
+      let scheduledTimeMatch = code.match(/let\s+scheduledTime\s*=\s*[\w.]+\.toISOString\(\)/);
+      if (scheduledTimeMatch) {
+        // Intentar buscar una fecha ISO en el texto
+        let isoDateMatch = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+        if (isoDateMatch) {
           try {
-            customDate = new Date(publishDateMatch[1]);
+            customDate = new Date(isoDateMatch[0]);
             if (!isNaN(customDate.getTime())) {
-              console.log("✓ Fecha encontrada en publishDate:", customDate.toISOString());
+              console.log("✓ Fecha encontrada en ISO string:", customDate.toISOString());
               extractedPost.published = customDate.toISOString();
             }
           } catch(e) {
-            console.error("Error al procesar fecha en publishDate:", e);
+            console.error("Error al procesar fecha ISO:", e);
           }
         }
-        
-        // PASO 2: Buscar scheduledTime como respaldo
-        if (!customDate) {
-          let scheduledTimeMatch = code.match(/let\s+scheduledTime\s*=\s*[\w.]+\.toISOString\(\)/);
-          if (scheduledTimeMatch) {
-            // Intentar buscar una fecha ISO en el texto
-            let isoDateMatch = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-            if (isoDateMatch) {
-              try {
-                customDate = new Date(isoDateMatch[0]);
-                if (!isNaN(customDate.getTime())) {
-                  console.log("✓ Fecha encontrada en ISO string:", customDate.toISOString());
-                  extractedPost.published = customDate.toISOString();
-                }
-              } catch(e) {
-                console.error("Error al procesar fecha ISO:", e);
-              }
-            }
-          }
-        }
-        
-        // PASO 3: NUEVO - Búsqueda específica de formato con nombre variable (maratón_cine_casa_epico)
-        let postVarNameMatch = code.match(/const\s+postContent_(\w+)\s*=\s*\{/);
-        if (postVarNameMatch) {
-          let postVarName = "postContent_" + postVarNameMatch[1];
-          console.log("✓ Variable de post encontrada con formato específico:", postVarName);
-          
-          // Extraer título
-          let titlePattern = new RegExp('title:\\s*["\'`]([^"\'`]+)["\'`]');
-          let titleMatch = code.match(titlePattern);
-          if (titleMatch && titleMatch[1]) {
-            extractedPost.title = titleMatch[1];
-            console.log("✓ Título encontrado:", extractedPost.title);
-          }
-          
-          // Extraer contenido - manejo especial para backticks
-          let contentStartPattern = /content:\s*`/;
-          let contentStart = code.search(contentStartPattern);
-          
-          if (contentStart !== -1) {
-            contentStart += code.substring(contentStart).match(/content:\s*`/)[0].length;
-            
-            // Buscar el cierre de backtick correspondiente teniendo en cuenta anidamiento
-            let contentEnd = -1;
-            let backtickLevel = 1; // Ya estamos dentro de un backtick
-            
-            for (let i = contentStart; i < code.length; i++) {
-              if (code[i] === '`' && code[i-1] !== '\\') {
-                backtickLevel--;
-                if (backtickLevel === 0) {
-                  contentEnd = i;
-                  break;
-                }
-              } else if (code[i] === '`' && code[i-1] === '$' && code[i-2] === '{') {
-                backtickLevel++;
-              }
-            }
-            
-            if (contentEnd !== -1) {
-              let content = code.substring(contentStart, contentEnd);
-              extractedPost.content = content;
-              console.log("✓ Contenido encontrado con backticks (longitud):", content.length);
-            }
-          }
-          
-          // Extraer fecha published
-          let publishedPattern = /published:\s*["'`]([^"'`]+)["'`]/;
-          let publishedMatch = code.match(publishedPattern);
-          if (publishedMatch && publishedMatch[1]) {
-            try {
-              let objDate = new Date(publishedMatch[1]);
-              if (!isNaN(objDate.getTime())) {
-                extractedPost.published = objDate.toISOString();
-                console.log("✓ Fecha encontrada en published:", extractedPost.published);
-              }
-            } catch(e) {
-              console.error("Error al procesar fecha en published:", e);
-            }
-          }
-          
-          // Extraer etiquetas del array labels
-          let labelsStartPattern = /labels:\s*\[/;
-          let labelsStart = code.search(labelsStartPattern);
-          
-          if (labelsStart !== -1) {
-            labelsStart += code.substring(labelsStart).match(/labels:\s*\[/)[0].length;
-            
-            // Buscar el cierre del array
-            let bracketsLevel = 1;
-            let labelsEnd = -1;
-            
-            for (let i = labelsStart; i < code.length; i++) {
-              if (code[i] === '[') {
-                bracketsLevel++;
-              } else if (code[i] === ']') {
-                bracketsLevel--;
-                if (bracketsLevel === 0) {
-                  labelsEnd = i;
-                  break;
-                }
-              }
-            }
-            
-            if (labelsEnd !== -1) {
-              let labelsText = code.substring(labelsStart, labelsEnd);
-              let labelMatches = labelsText.match(/["'`]([^"'`]+)["'`]/g);
-              
-              if (labelMatches && labelMatches.length > 0) {
-                extractedPost.labels = labelMatches.map(label => 
-                  label.replace(/["'`]/g, '').trim()
-                );
-                console.log("✓ Etiquetas encontradas:", extractedPost.labels);
-              }
-            }
-          }
-        } else {
-          // PASO 4: Mantener el método original para otros formatos
-          let postVarMatch = code.match(/const\s+(\w+)\s*=\s*\{/);
-          let postVarName = postVarMatch ? postVarMatch[1] : null;
-          
-          if (postVarName) {
-            console.log("✓ Variable de post encontrada:", postVarName);
-            
-            // Extraer título con un patrón más flexible
-            let titleMatch = code.match(/["']title["']\s*:\s*["']([^"']+)["']/);
-            if (titleMatch && titleMatch[1]) {
-              extractedPost.title = titleMatch[1];
-              console.log("✓ Título encontrado:", extractedPost.title);
-            }
-            
-            // Extraer contenido - manejo especial para HTML
-            let contentStart = code.indexOf('"content": "');
-            if (contentStart === -1) contentStart = code.indexOf("'content': '");
-            if (contentStart === -1) contentStart = code.indexOf('"content": `');
-            
-            if (contentStart !== -1) {
-              // Determinar qué tipo de comilla se usa
-              let quoteChar = code.charAt(contentStart + 11);
-              let endQuoteChar = quoteChar;
-              if (quoteChar === '`') endQuoteChar = '`';
-              
-              contentStart += 12; // Longitud de '"content": "' o variantes
-              
-              // Buscar el cierre de comilla correspondiente teniendo en cuenta escapes
-              let contentEnd = -1;
-              let pos = contentStart;
-              let inEscape = false;
-              let nestLevel = 0;
-              
-              while (pos < code.length) {
-                let char = code.charAt(pos);
-                
-                if (char === '\\') {
-                  inEscape = !inEscape;
-                } else if (char === endQuoteChar && !inEscape) {
-                  // Para template literals, debemos asegurarnos de que no estamos dentro de ${}
-                  if (endQuoteChar === '`' && nestLevel === 0) {
-                    contentEnd = pos;
-                    break;
-                  } else if (endQuoteChar !== '`') {
-                    contentEnd = pos;
-                    break;
-                  }
-                } else if (endQuoteChar === '`' && char === '{' && code.charAt(pos-1) === '$' && !inEscape) {
-                  nestLevel++;
-                } else if (endQuoteChar === '`' && char === '}' && !inEscape) {
-                  nestLevel--;
-                } else {
-                  inEscape = false;
-                }
-                pos++;
-              }
-              
-              if (contentEnd !== -1) {
-                let content = code.substring(contentStart, contentEnd)
-                  .replace(/\\"/g, '"')
-                  .replace(/\\'/g, "'")
-                  .replace(/\\n/g, "\n")
-                  .replace(/\\t/g, "\t")
-                  .replace(/\\\\/g, "\\");
-                
-                extractedPost.content = content;
-                console.log("✓ Contenido encontrado (longitud):", content.length);
-              }
-            }
-            
-            // Extraer fecha publicada del objeto (si no se encontró en publishDate)
-            if (!customDate) {
-              let publishedMatch = code.match(/["']published["']\s*:\s*["']([^"']+)["']/);
-              if (publishedMatch && publishedMatch[1]) {
-                try {
-                  let objDate = new Date(publishedMatch[1]);
-                  if (!isNaN(objDate.getTime())) {
-                    extractedPost.published = objDate.toISOString();
-                    console.log("✓ Fecha encontrada en published:", extractedPost.published);
-                  }
-                } catch(e) {
-                  console.error("Error al procesar fecha en published:", e);
-                }
-              }
-            }
-            
-            // Extraer etiquetas con patrón más flexible
-            let labelsPattern = /["']labels["']\s*:\s*\[([\s\S]*?)\]/;
-            let labelsMatch = code.match(labelsPattern);
-            
-            if (labelsMatch && labelsMatch[1]) {
-              let labelsText = labelsMatch[1];
-              let labelMatches = labelsText.match(/["']([^"']+)["']/g);
-              
-              if (labelMatches && labelMatches.length > 0) {
-                extractedPost.labels = labelMatches.map(label => 
-                  label.replace(/["']/g, '').trim()
-                );
-                console.log("✓ Etiquetas encontradas:", extractedPost.labels);
-              }
-            }
-          }
-        }
-        
-        // PASO 5: Buscar postLabels como alternativa para etiquetas si no se encontraron
-        if (extractedPost.labels.length === 0) {
-          let postLabelsMatch = code.match(/const\s+postLabels\s*=\s*\[([\s\S]*?)\];/);
-          
-          if (postLabelsMatch && postLabelsMatch[1]) {
-            let labelsText = postLabelsMatch[1];
-            let labelMatches = labelsText.match(/["']([^"'<>]+)["']/g);
-            
-            if (labelMatches && labelMatches.length > 0) {
-              extractedPost.labels = labelMatches.map(label => 
-                label.replace(/["'<p>\\]/g, "").trim()
-              );
-              console.log("✓ Etiquetas encontradas en postLabels:", extractedPost.labels);
-            } else {
-              // Intentar otra forma de extraer de postLabels (con HTML)
-              let htmlLabels = postLabelsMatch[1].match(/<p>([^<]+)/g);
-              if (htmlLabels && htmlLabels.length > 0) {
-                extractedPost.labels = htmlLabels.map(label => 
-                  label.replace(/<p>/g, "").trim()
-                );
-                console.log("✓ Etiquetas HTML encontradas en postLabels:", extractedPost.labels);
-              }
-            }
-          }
-        }
-        
-      } catch (e) {
-        console.error("Error en procesamiento:", e);
-        container.querySelector(".status-msg").textContent = "Error al procesar: " + e.message;
-      }
-
-      // Actualizar la interfaz con la información extraída
-      container.querySelector(".titulo").textContent = extractedPost.title;
-      container.querySelector(".fecha").textContent = extractedPost.published;
-      container.querySelector(".etiquetas").textContent = extractedPost.labels.join(", ");
-      
-      // Guardar el contenido completo oculto
-      container.querySelector(".content-full").innerHTML = extractedPost.content;
-      
-      // Mostrar vista previa del contenido (primeros 200 caracteres)
-      let contentPreview = extractedPost.content;
-      if (contentPreview.length > 200) {
-        contentPreview = contentPreview.substring(0, 200) + "...";
-      }
-      container.querySelector(".content-preview").innerHTML = contentPreview;
-      
-      // Añadir botón para ver contenido completo si no existe
-      if (!container.querySelector(".toggle-content")) {
-        const toggleBtn = document.createElement("button");
-        toggleBtn.className = "toggle-content";
-        toggleBtn.textContent = "Ver contenido completo";
-        toggleBtn.onclick = function() {
-          const contentEl = container.querySelector(".content-full");
-          const previewEl = container.querySelector(".content-preview").parentElement;
-          
-          if (contentEl.style.display === "none") {
-            contentEl.style.display = "block";
-            previewEl.style.display = "none";
-            this.textContent = "Ver vista previa";
-          } else {
-            contentEl.style.display = "none";
-            previewEl.style.display = "block";
-            this.textContent = "Ver contenido completo";
-          }
-        };
-        container.insertBefore(toggleBtn, container.querySelector(".status-msg"));
       }
     }
+    
+    // PASO 3: Búsqueda específica de formato con nombre variable (maratón_cine_casa_epico)
+    // Mejora la expresión regular para ser más flexible con guiones bajos múltiples
+    let postVarNameMatch = code.match(/const\s+(postContent_[a-zA-Z0-9_]+)\s*=\s*\{/);
+    if (postVarNameMatch) {
+      let postVarName = postVarNameMatch[1];
+      console.log("✓ Variable de post encontrada con formato específico:", postVarName);
+      
+      // Extracción de título más robusta
+      let titleRegex = new RegExp('title:\\s*["\'\`]([^"\'\`]+)["\'\`]', 'i');
+      let titleMatch = code.match(titleRegex);
+      if (titleMatch && titleMatch[1]) {
+        extractedPost.title = titleMatch[1];
+        console.log("✓ Título encontrado:", extractedPost.title);
+      }
+      
+      // Extracción de contenido - mejorada para manejar backticks
+      let contentStartMatch = code.match(/content:\s*`/);
+      if (contentStartMatch) {
+        let contentStart = code.indexOf(contentStartMatch[0]) + contentStartMatch[0].length;
+        
+        // Recorrer el código para encontrar el backtick de cierre correspondiente
+        let backtickLevel = 1;
+        let contentEnd = -1;
+        
+        for (let i = contentStart; i < code.length; i++) {
+          let char = code.charAt(i);
+          let prevChar = i > 0 ? code.charAt(i-1) : '';
+          let prevPrevChar = i > 1 ? code.charAt(i-2) : '';
+          
+          if (char === '`' && prevChar !== '\\') {
+            if (prevChar === '}' && prevPrevChar === '$') {
+              // No es un cierre de backtick, es parte de ${} 
+              continue;
+            }
+            backtickLevel--;
+            if (backtickLevel === 0) {
+              contentEnd = i;
+              break;
+            }
+          } else if (char === '`' && prevChar === '{' && i > 1 && code.charAt(i-2) === '$') {
+            backtickLevel++;
+          }
+        }
+        
+        if (contentEnd !== -1) {
+          let content = code.substring(contentStart, contentEnd);
+          extractedPost.content = content;
+          console.log("✓ Contenido encontrado con backticks (longitud):", content.length);
+        }
+      }
+      
+      // Extracción de etiquetas del array labels
+      let labelsStartMatch = code.match(/labels:\s*\[/);
+      if (labelsStartMatch) {
+        let labelsStart = code.indexOf(labelsStartMatch[0]) + labelsStartMatch[0].length;
+        
+        // Encontrar el cierre del array
+        let bracketLevel = 1;
+        let labelsEnd = -1;
+        
+        for (let i = labelsStart; i < code.length; i++) {
+          if (code.charAt(i) === '[') {
+            bracketLevel++;
+          } else if (code.charAt(i) === ']') {
+            bracketLevel--;
+            if (bracketLevel === 0) {
+              labelsEnd = i;
+              break;
+            }
+          }
+        }
+        
+        if (labelsEnd !== -1) {
+          let labelsText = code.substring(labelsStart, labelsEnd);
+          // Mejora la detección de etiquetas para manejar diferentes tipos de comillas
+          let labelMatches = labelsText.match(/["'`]([^"'`]+)["'`]/g);
+          
+          if (labelMatches && labelMatches.length > 0) {
+            extractedPost.labels = labelMatches.map(label => 
+              label.replace(/["'`]/g, '').trim()
+            );
+            console.log("✓ Etiquetas encontradas:", extractedPost.labels);
+          }
+        }
+      }
+      
+      // Extracción de published si aún no se encontró
+      if (!customDate) {
+        let publishedMatch = code.match(/published:\s*["'`]([^"'`]+)["'`]/);
+        if (publishedMatch && publishedMatch[1]) {
+          try {
+            let objDate = new Date(publishedMatch[1]);
+            if (!isNaN(objDate.getTime())) {
+              extractedPost.published = objDate.toISOString();
+              console.log("✓ Fecha encontrada en published:", extractedPost.published);
+            }
+          } catch(e) {
+            console.error("Error al procesar fecha en published:", e);
+          }
+        }
+      }
+    }
+    
+    // PASO 4: Si no se encontraron las etiquetas, buscar en postLabels
+    if (extractedPost.labels.length === 0) {
+      let postLabelsMatch = code.match(/const\s+postLabels\s*=\s*\[([\s\S]*?)\];/);
+      
+      if (postLabelsMatch && postLabelsMatch[1]) {
+        let labelsText = postLabelsMatch[1];
+        let labelMatches = labelsText.match(/["'`]([^"'`<>]+)["'`]/g);
+        
+        if (labelMatches && labelMatches.length > 0) {
+          extractedPost.labels = labelMatches.map(label => 
+            label.replace(/["'`<p>\\]/g, "").trim()
+          );
+          console.log("✓ Etiquetas encontradas en postLabels:", extractedPost.labels);
+        } else {
+          // Intentar otra forma de extraer de postLabels (con HTML)
+          let htmlLabels = postLabelsMatch[1].match(/<p>([^<]+)/g);
+          if (htmlLabels && htmlLabels.length > 0) {
+            extractedPost.labels = htmlLabels.map(label => 
+              label.replace(/<p>/g, "").trim()
+            );
+            console.log("✓ Etiquetas HTML encontradas en postLabels:", extractedPost.labels);
+          }
+        }
+      }
+    }
+    
+  } catch (e) {
+    console.error("Error en procesamiento:", e);
+    container.querySelector(".status-msg").textContent = "Error al procesar: " + e.message;
+  }
+
+  // Actualizar la interfaz con la información extraída
+  container.querySelector(".titulo").textContent = extractedPost.title;
+  container.querySelector(".fecha").textContent = extractedPost.published;
+  container.querySelector(".etiquetas").textContent = extractedPost.labels.join(", ");
+  
+  // Guardar el contenido completo oculto
+  container.querySelector(".content-full").innerHTML = extractedPost.content;
+  
+  // Mostrar vista previa del contenido (primeros 200 caracteres)
+  let contentPreview = extractedPost.content;
+  if (contentPreview.length > 200) {
+    contentPreview = contentPreview.substring(0, 200) + "...";
+  }
+  container.querySelector(".content-preview").innerHTML = contentPreview;
+  
+  // Añadir botón para ver contenido completo si no existe
+  if (!container.querySelector(".toggle-content")) {
+    const toggleBtn = document.createElement("button");
+    toggleBtn.className = "toggle-content";
+    toggleBtn.textContent = "Ver contenido completo";
+    toggleBtn.onclick = function() {
+      const contentEl = container.querySelector(".content-full");
+      const previewEl = container.querySelector(".content-preview").parentElement;
+      
+      if (contentEl.style.display === "none") {
+        contentEl.style.display = "block";
+        previewEl.style.display = "none";
+        this.textContent = "Ver vista previa";
+      } else {
+        contentEl.style.display = "none";
+        previewEl.style.display = "block";
+        this.textContent = "Ver contenido completo";
+      }
+    };
+    container.insertBefore(toggleBtn, container.querySelector(".status-msg"));
+  }
+}
 
     function publishPosts() {
       if (!accessToken) {
