@@ -3,20 +3,73 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Listar y Comparar Títulos en Blogger</title>
+  <title>Publicación en Blogger</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    #post-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .post-entry {
+      display: flex;
+      flex-wrap: wrap;
+      width: 100%;
+      border: 1px solid #ccc;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    textarea {
+      width: 45%;
+      height: 250px;
+      resize: none;
+    }
+    .preview {
+      width: 50%;
+      padding: 10px;
+      background: #f9f9f9;
+      border-left: 2px solid #ddd;
+    }
+    .preview p {
+      margin: 5px 0;
+    }
+    .status-msg {
+      font-weight: bold;
+      color: green;
+    }
+    @media (max-width: 768px) {
+      .post-entry {
+        flex-direction: column;
+      }
+      textarea, .preview {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Publicaciones en Blogger</h1>
+  <p id="status">No has iniciado sesión</p>
+  <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión</button>
+  <button id="add-post" onclick="addTextArea()">Añadir Publicación</button>
+  <button id="post-button" onclick="publishPosts()" style="display: none;">Publicar Todas</button>
+  <div id="post-container"></div>
+
   <script>
     const CLIENT_ID = "338010031407-a0qku90nm9atgjsgirdg9i40av85ptbn.apps.googleusercontent.com";
-    const API_KEY = "AIzaSyBkROi9aAkTcWaZwMa05RG7dFPbwdrZIok";
     const BLOG_ID = "6423620772115300042";
-    const SCOPES = "https://www.googleapis.com/auth/blogger.readonly";
+    const SCOPES = "https://www.googleapis.com/auth/blogger";
     
-    let accessToken = localStorage.getItem("accessToken") || null;
+    let accessToken = null;
     let tokenClient;
-    let existingTitles = [];
-    let titlesLoaded = false;
+    let publishedTitles = new Set();
 
     function initClient() {
+      document.getElementById('status').textContent = "No has iniciado sesión";
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
@@ -26,195 +79,145 @@
             return;
           }
           accessToken = response.access_token;
-          localStorage.setItem("accessToken", accessToken);
-          updateSessionStatus();
-          fetchAllPostTitles();
+          document.getElementById('auth-button').style.display = "none";
+          document.getElementById('status').textContent = "Ya iniciaste sesión";
+          document.getElementById('post-button').style.display = "inline";
         }
       });
-
-      updateSessionStatus();
-      if (accessToken) {
-        fetchAllPostTitles();
-      }
-    }
-
-    function updateSessionStatus() {
-      let statusElement = document.getElementById("session-status");
-      let authButton = document.getElementById("auth-button");
-      let fetchButton = document.getElementById("fetch-titles-button");
-
-      if (accessToken) {
-        fetchButton.style.display = "inline-block";
-        authButton.style.display = "none";
-        statusElement.textContent = "✅ Ya iniciaste sesión";
-        statusElement.style.color = "green";
-      } else {
-        fetchButton.style.display = "none";
-        authButton.style.display = "inline-block";
-        statusElement.textContent = "❌ No has iniciado sesión";
-        statusElement.style.color = "red";
-      }
+      document.getElementById('auth-button').disabled = false;
+      addTextArea();
     }
 
     function handleAuthClick() {
       tokenClient.requestAccessToken();
     }
 
-    function logout() {
-      localStorage.removeItem("accessToken");
-      accessToken = null;
-      titlesLoaded = false;
-      existingTitles = [];
-      updateSessionStatus();
-      document.getElementById("titles-container").innerHTML = "";
-      document.getElementById("comparison-results").innerHTML = "";
+    function addTextArea() {
+      const container = document.getElementById("post-container");
+      const div = document.createElement("div");
+      div.classList.add("post-entry");
+      div.innerHTML = `
+        <textarea class="post-content" placeholder="Pega aquí el código"></textarea>
+        <div class="preview">
+          <p><strong>Título:</strong> <span class="titulo">-</span></p>
+          <p><strong>Fecha:</strong> <span class="fecha">-</span></p>
+          <p><strong>Etiquetas:</strong> <span class="etiquetas">-</span></p>
+          <p><strong>Contenido:</strong> <span class="content">-</span></p>
+          <p class="status-msg"></p>
+        </div>
+        <button onclick="pasteContent(this)">Pegar</button>
+        <button onclick="removeEntry(this)">Eliminar</button>
+      `;
+      container.appendChild(div);
     }
 
-    async function fetchAllPostTitles() {
+    function removeEntry(button) {
+      button.parentElement.remove();
+    }
+
+    async function pasteContent(button) {
+      try {
+        const text = await navigator.clipboard.readText();
+        let container = button.parentElement;
+        let textarea = container.querySelector(".post-content");
+        textarea.value = text;
+        processJSCode(container);
+        container.querySelector(".status-msg").textContent = "Código pegado y procesado";
+      } catch (err) {
+        alert("Error al pegar: " + err.message);
+      }
+    }
+
+    function processJSCode(container) {
+      let code = container.querySelector(".post-content").value;
+      let extractedPost = null;
+
+      try {
+        let sanitizedCode = code.replace(/let |const /g, "").replace(/;\s*$/, "");
+        let evaluatedData = new Function(sanitizedCode + "; return this;")();
+
+        for (let key in evaluatedData) {
+          if (evaluatedData[key] && typeof evaluatedData[key] === "object" && evaluatedData[key].kind === "blogger#post") {
+            extractedPost = evaluatedData[key];
+            break;
+          }
+        }
+
+        if (!extractedPost) {
+          container.querySelector(".status-msg").textContent = "Error: No se encontró una entrada válida.";
+          return;
+        }
+      } catch (e) {
+        container.querySelector(".status-msg").textContent = "Error al analizar el código.";
+        return;
+      }
+
+      let title = extractedPost.title || "Sin título";
+      let content = extractedPost.content || "Sin contenido";
+      let publishedDate = extractedPost.published || new Date().toISOString();
+      let labels = extractedPost.labels || [];
+
+      container.querySelector(".titulo").textContent = title;
+      container.querySelector(".fecha").textContent = publishedDate;
+      container.querySelector(".etiquetas").textContent = labels.join(", ");
+      container.querySelector(".content").textContent = content.replace(/<[^>]*>?/gm, ''); // Quita HTML para vista previa
+    }
+
+    function publishPosts() {
       if (!accessToken) {
+        document.getElementById('status').textContent = "Primero debes iniciar sesión";
         alert("Debes autenticarte primero.");
         return;
       }
 
-      let titlesContainer = document.getElementById("titles-container");
-      titlesContainer.innerHTML = "<h2>Cargando títulos...</h2>";
-      existingTitles = [];
-      let nextPageToken = null;
+      document.getElementById('status').textContent = "Publicando entradas...";
+      let totalPublished = 0;
 
-      try {
-        do {
-          let url = `https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts?fields=items(title),nextPageToken&maxResults=50`;
-          if (nextPageToken) {
-            url += `&pageToken=${nextPageToken}`;
-          }
+      document.querySelectorAll(".post-entry").forEach(entry => {
+        let title = entry.querySelector(".titulo").textContent || "Sin título";
+        let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
+        let labels = entry.querySelector(".etiquetas").textContent.split(", ") || [];
+        let content = entry.querySelector(".content").textContent || "Sin contenido";
 
-          let response = await fetch(url, {
-            headers: { "Authorization": `Bearer ${accessToken}` }
-          });
-
-          let data = await response.json();
-          if (data.error) {
-            alert("Error al obtener títulos: " + JSON.stringify(data.error));
-            return;
-          }
-
-          if (data.items) {
-            existingTitles.push(...data.items.map(post => post.title.toLowerCase()));
-          }
-
-          nextPageToken = data.nextPageToken || null;
-        } while (nextPageToken);
-
-        titlesContainer.innerHTML = "<h2>Títulos existentes en el blog</h2>";
-        if (existingTitles.length > 0) {
-          existingTitles.forEach(title => {
-            let p = document.createElement("p");
-            p.textContent = title;
-            titlesContainer.appendChild(p);
-          });
-        } else {
-          titlesContainer.innerHTML += "<p>No hay publicaciones.</p>";
+        if (publishedTitles.has(title)) {
+          alert(`El post "${title}" ya fue publicado.`);
+          return;
         }
 
-        titlesLoaded = true;
-      } catch (err) {
-        alert("Error en la solicitud: " + err.message);
-      }
-    }
+        let scheduledTime = new Date(new Date(rawDate).getTime() + (5 * 60 * 60 * 1000)).toISOString();
 
-    function compareTitles() {
-      if (!titlesLoaded) {
-        alert("Primero debes iniciar sesión y cargar los títulos del blog.");
-        return;
-      }
-
-      let newTitlesText = document.getElementById("new-titles").value;
-      if (!newTitlesText.trim()) {
-        alert("Introduce títulos para comparar.");
-        return;
-      }
-
-      let newTitles = newTitlesText.split(",").map(t => t.trim().toLowerCase());
-      let similarTitles = [];
-      let uniqueTitles = [];
-
-      newTitles.forEach(newTitle => {
-        let isSimilar = existingTitles.some(existingTitle => similarity(existingTitle, newTitle) >= 0.8);
-        if (isSimilar) {
-          similarTitles.push(newTitle);
-        } else {
-          uniqueTitles.push(newTitle);
-        }
+        fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            kind: "blogger#post",
+            title,
+            content,
+            labels,
+            status: "SCHEDULED",
+            published: scheduledTime 
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (!data.error) {
+            totalPublished++;
+            publishedTitles.add(title);
+            entry.remove();
+          }
+        })
+        .catch(err => alert("Error en la solicitud: " + err.message));
       });
 
-      let resultContainer = document.getElementById("comparison-results");
-      resultContainer.innerHTML = "<h2>Resultados de la Comparación</h2>";
-
-      if (similarTitles.length > 0) {
-        let similarHTML = "<h3>❌ Títulos repetidos o similares:</h3><ul>";
-        similarTitles.forEach(title => similarHTML += `<li>${title}</li>`);
-        similarHTML += "</ul>";
-        resultContainer.innerHTML += similarHTML;
-      } else {
-        resultContainer.innerHTML += "<p>✅ No hay títulos repetidos.</p>";
-      }
-
-      if (uniqueTitles.length > 0) {
-        let uniqueHTML = "<h3>✅ Títulos que puedes usar:</h3><ul>";
-        uniqueTitles.forEach(title => uniqueHTML += `<li>${title}</li>`);
-        uniqueHTML += "</ul>";
-        resultContainer.innerHTML += uniqueHTML;
-      } else {
-        resultContainer.innerHTML += "<p>❌ No hay títulos nuevos utilizables.</p>";
-      }
-    }
-
-    function similarity(s1, s2) {
-      let longer = s1.length > s2.length ? s1 : s2;
-      let shorter = s1.length > s2.length ? s2 : s1;
-      let longerLength = longer.length;
-      if (longerLength === 0) return 1.0;
-      return (longerLength - editDistance(longer, shorter)) / parseFloat(longerLength);
-    }
-
-    function editDistance(s1, s2) {
-      let costs = [];
-      for (let i = 0; i <= s1.length; i++) {
-        let lastValue = i;
-        for (let j = 0; j <= s2.length; j++) {
-          if (i === 0) {
-            costs[j] = j;
-          } else {
-            if (j > 0) {
-              let newValue = costs[j - 1];
-              if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
-                newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
-              }
-              costs[j - 1] = lastValue;
-              lastValue = newValue;
-            }
-          }
+      setTimeout(() => {
+        if (totalPublished > 0) {
+          document.getElementById("status").textContent = `Fueron publicadas ${totalPublished} entradas.`;
         }
-        if (i > 0) costs[s2.length] = lastValue;
-      }
-      return costs[s2.length];
+      }, 3000);
     }
   </script>
-</head>
-<body onload="initClient()">
-  <h1>Listar y Comparar Títulos en Blogger</h1>
-  <p id="session-status">Cargando estado de sesión...</p>
-  <button id="auth-button" onclick="handleAuthClick()" style="display:none;">Iniciar sesión con Google</button>
-  <button id="fetch-titles-button" onclick="fetchAllPostTitles()" style="display:none;">Obtener Todos los Títulos</button>
-  <button onclick="logout()">Cerrar Sesión</button>
-
-  <h2>Comparar Nuevos Títulos</h2>
-  <textarea id="new-titles" rows="5" cols="50" placeholder="Ingresa títulos separados por coma"></textarea>
-  <br>
-  <button onclick="compareTitles()">Comparar</button>
-
-  <div id="comparison-results"></div>
-  
-  <div id="titles-container"></div>
 </body>
 </html>
