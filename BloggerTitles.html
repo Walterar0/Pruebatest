@@ -3,21 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Publicación Múltiple en Blogger</title>
+  <title>Listar Todos los Títulos de Publicaciones en Blogger</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     const CLIENT_ID = "338010031407-a0qku90nm9atgjsgirdg9i40av85ptbn.apps.googleusercontent.com";
     const API_KEY = "AIzaSyBkROi9aAkTcWaZwMa05RG7dFPbwdrZIok";
     const BLOG_ID = "6423620772115300042";
-    const SCOPES = "https://www.googleapis.com/auth/blogger";
-
-    let accessToken = null;
+    const SCOPES = "https://www.googleapis.com/auth/blogger.readonly";
+    
+    let accessToken = localStorage.getItem("accessToken") || null;
     let tokenClient;
-    let publishedTitles = new Set();
 
     function initClient() {
-      document.getElementById('status').textContent = "No has iniciado sesión";
-
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
@@ -27,158 +24,106 @@
             return;
           }
           accessToken = response.access_token;
-          document.getElementById('auth-button').style.display = "none";
-          document.getElementById('status').textContent = "Ya iniciaste sesión";
-          document.getElementById('post-button').style.display = "inline";
+          localStorage.setItem("accessToken", accessToken);
+          updateSessionStatus();
+          fetchAllPostTitles();
         }
       });
 
-      document.getElementById('auth-button').disabled = false;
-      addTextArea();
+      updateSessionStatus();
+      if (accessToken) {
+        fetchAllPostTitles();
+      }
+    }
+
+    function updateSessionStatus() {
+      let statusElement = document.getElementById("session-status");
+      let authButton = document.getElementById("auth-button");
+      let fetchButton = document.getElementById("fetch-titles-button");
+
+      if (accessToken) {
+        fetchButton.style.display = "inline-block";
+        authButton.style.display = "none";
+        statusElement.textContent = "✅ Ya iniciaste sesión";
+        statusElement.style.color = "green";
+      } else {
+        fetchButton.style.display = "none";
+        authButton.style.display = "inline-block";
+        statusElement.textContent = "❌ No has iniciado sesión";
+        statusElement.style.color = "red";
+      }
     }
 
     function handleAuthClick() {
       tokenClient.requestAccessToken();
     }
 
-    function addTextArea() {
-      const container = document.getElementById("post-container");
-      const div = document.createElement("div");
-      div.classList.add("post-entry");
-      div.innerHTML = `
-        <textarea class="post-content" rows="10" cols="80" placeholder="Pegar JSON aquí"></textarea>
-        <button onclick="pasteContent(this)">Pegar</button>
-        <button onclick="removeEntry(this)">Eliminar</button>
-        <p><strong>Título:</strong> <span class="titulo"></span></p>
-        <p><strong>Fecha:</strong> <span class="fecha"></span></p>
-        <p><strong>Etiquetas:</strong> <span class="etiquetas"></span></p>
-        <p><strong>Contenido:</strong></p>
-        <div class="content" style="border: 1px solid #ccc; padding: 5px; background: #f9f9f9;"></div>
-        <p class="status-msg"></p>
-        <hr>
-      `;
-      container.appendChild(div);
+    function logout() {
+      localStorage.removeItem("accessToken");
+      accessToken = null;
+      updateSessionStatus();
+      document.getElementById("titles-container").innerHTML = "";
     }
 
-    function removeEntry(button) {
-      button.parentElement.remove();
-    }
-
-    async function pasteContent(button) {
-      try {
-        const text = await navigator.clipboard.readText();
-        let container = button.parentElement;
-        let textarea = container.querySelector(".post-content");
-        textarea.value = text;
-        extractData(container);
-        container.querySelector(".status-msg").textContent = "Código pegado";
-      } catch (err) {
-        alert("Error al pegar: " + err.message);
-      }
-    }
-
-    function extractData(container) {
-      let jsonContent = container.querySelector(".post-content").value;
-
-      try {
-        // 🔥 CORRECCIÓN AUTOMÁTICA DE JSON 🔥
-        jsonContent = jsonContent
-          .replace(/\\T/g, "")  // Elimina "\T" incorrecto
-          .replace(/\\P/g, "")  // Elimina "\P" incorrecto
-          .replace(/\\n/g, "")  // Elimina saltos de línea no deseados
-          .replace(/\\"/g, '"') // Corrige comillas escapadas incorrectamente
-          .replace(/\\\\/g, "\\"); // Corrige barras invertidas dobles
-
-        let post = JSON.parse(jsonContent);
-
-        // Validaciones y correcciones adicionales
-        if (!post.title) post.title = "Título no encontrado";
-        if (!post.published) post.published = new Date().toISOString();
-        if (!post.labels || !Array.isArray(post.labels)) post.labels = [];
-        if (!post.content) post.content = "<p>Contenido no encontrado</p>";
-
-        // Elimina etiquetas HTML en labels
-        post.labels = post.labels.map(label => label.replace(/<\/?p>/g, "").trim());
-
-        // Mostrar datos en la interfaz
-        container.querySelector(".titulo").textContent = post.title;
-        container.querySelector(".fecha").textContent = post.published;
-        container.querySelector(".etiquetas").textContent = post.labels.join(", ");
-        container.querySelector(".content").innerHTML = post.content;
-
-      } catch (error) {
-        alert("Error al analizar JSON: " + error.message);
-      }
-    }
-
-    function publishPosts() {
+    async function fetchAllPostTitles() {
       if (!accessToken) {
-        document.getElementById('status').textContent = "Primero debes iniciar sesión";
         alert("Debes autenticarte primero.");
         return;
       }
 
-      document.getElementById('status').textContent = "Publicando entradas...";
+      let titlesContainer = document.getElementById("titles-container");
+      titlesContainer.innerHTML = "<h2>Cargando títulos...</h2>";
+      let allTitles = [];
+      let nextPageToken = null;
 
-      let totalPublished = 0;
-
-      document.querySelectorAll(".post-entry").forEach(entry => {
-        let title = entry.querySelector(".titulo").textContent || "Sin título";
-        let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
-        let labels = entry.querySelector(".etiquetas").textContent.split(", ") || [];
-        let content = entry.querySelector(".content").innerHTML || "<p>Sin contenido</p>";
-
-        if (publishedTitles.has(title)) {
-          alert(`El post "${title}" ya fue publicado.`);
-          return;
-        }
-
-        let localDate = new Date(rawDate);
-        if (isNaN(localDate.getTime())) localDate = new Date();
-        let scheduledTime = new Date(localDate.getTime() + (5 * 60 * 60 * 1000)).toISOString();
-
-        fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${accessToken}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            kind: "blogger#post",
-            title,
-            content,
-            labels,
-            status: "SCHEDULED",
-            published: scheduledTime
-          })
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.error) {
-            alert("Error al publicar: " + JSON.stringify(data.error));
-          } else {
-            totalPublished++;
-            publishedTitles.add(title);
-            entry.remove();
+      try {
+        do {
+          let url = `https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts?fields=items(title),nextPageToken&maxResults=50`;
+          if (nextPageToken) {
+            url += `&pageToken=${nextPageToken}`;
           }
-        })
-        .catch(err => alert("Error en la solicitud: " + err.message));
-      });
 
-      setTimeout(() => {
-        if (totalPublished > 0) {
-          document.getElementById("status").textContent = `Fueron publicadas ${totalPublished} entradas.`;
+          let response = await fetch(url, {
+            headers: {
+              "Authorization": `Bearer ${accessToken}`
+            }
+          });
+
+          let data = await response.json();
+          if (data.error) {
+            alert("Error al obtener títulos: " + JSON.stringify(data.error));
+            return;
+          }
+
+          if (data.items) {
+            allTitles.push(...data.items.map(post => post.title));
+          }
+
+          nextPageToken = data.nextPageToken || null;
+        } while (nextPageToken);
+
+        titlesContainer.innerHTML = "<h2>Títulos de todas las publicaciones</h2>";
+        if (allTitles.length > 0) {
+          allTitles.forEach(title => {
+            let p = document.createElement("p");
+            p.textContent = title;
+            titlesContainer.appendChild(p);
+          });
+        } else {
+          titlesContainer.innerHTML += "<p>No hay publicaciones.</p>";
         }
-      }, 3000);
+      } catch (err) {
+        alert("Error en la solicitud: " + err.message);
+      }
     }
   </script>
 </head>
 <body onload="initClient()">
-  <h1>Publicaciones Múltiples en Blogger</h1>
-  <p id="status"></p>
-  <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
-  <button id="add-post" onclick="addTextArea()">Añadir Publicación</button>
-  <button id="post-button" onclick="publishPosts()" style="display: none;">Publicar Todas</button>
-  <div id="post-container"></div>
+  <h1>Listar Todos los Títulos de Publicaciones en Blogger</h1>
+  <p id="session-status">Cargando estado de sesión...</p>
+  <button id="auth-button" onclick="handleAuthClick()" style="display:none;">Iniciar sesión con Google</button>
+  <button id="fetch-titles-button" onclick="fetchAllPostTitles()" style="display:none;">Obtener Todos los Títulos</button>
+  <button onclick="logout()">Cerrar Sesión</button>
+  <div id="titles-container"></div>
 </body>
 </html>
