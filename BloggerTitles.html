@@ -1,9 +1,12 @@
+Aquí tienes el código modificado con un `<textarea>` donde puedes pegar nuevos títulos separados por comas. Luego, se compararán con los títulos ya existentes en el blog para detectar duplicados o títulos demasiado similares (80% o más de coincidencia). Se mostrarán los títulos nuevos que pueden usarse y los que son repetidos o similares.
+
+```html
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Listar Todos los Títulos de Publicaciones en Blogger</title>
+  <title>Listar y Comparar Títulos en Blogger</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     const CLIENT_ID = "338010031407-a0qku90nm9atgjsgirdg9i40av85ptbn.apps.googleusercontent.com";
@@ -13,6 +16,7 @@
     
     let accessToken = localStorage.getItem("accessToken") || null;
     let tokenClient;
+    let existingTitles = [];
 
     function initClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
@@ -73,7 +77,7 @@
 
       let titlesContainer = document.getElementById("titles-container");
       titlesContainer.innerHTML = "<h2>Cargando títulos...</h2>";
-      let allTitles = [];
+      existingTitles = [];
       let nextPageToken = null;
 
       try {
@@ -84,9 +88,7 @@
           }
 
           let response = await fetch(url, {
-            headers: {
-              "Authorization": `Bearer ${accessToken}`
-            }
+            headers: { "Authorization": `Bearer ${accessToken}` }
           });
 
           let data = await response.json();
@@ -96,15 +98,15 @@
           }
 
           if (data.items) {
-            allTitles.push(...data.items.map(post => post.title));
+            existingTitles.push(...data.items.map(post => post.title.toLowerCase()));
           }
 
           nextPageToken = data.nextPageToken || null;
         } while (nextPageToken);
 
-        titlesContainer.innerHTML = "<h2>Títulos de todas las publicaciones</h2>";
-        if (allTitles.length > 0) {
-          allTitles.forEach(title => {
+        titlesContainer.innerHTML = "<h2>Títulos existentes en el blog</h2>";
+        if (existingTitles.length > 0) {
+          existingTitles.forEach(title => {
             let p = document.createElement("p");
             p.textContent = title;
             titlesContainer.appendChild(p);
@@ -116,14 +118,97 @@
         alert("Error en la solicitud: " + err.message);
       }
     }
+
+    function compareTitles() {
+      let newTitlesText = document.getElementById("new-titles").value;
+      if (!newTitlesText.trim()) {
+        alert("Introduce títulos para comparar.");
+        return;
+      }
+
+      let newTitles = newTitlesText.split(",").map(t => t.trim().toLowerCase());
+      let similarTitles = [];
+      let uniqueTitles = [];
+
+      newTitles.forEach(newTitle => {
+        let isSimilar = existingTitles.some(existingTitle => similarity(existingTitle, newTitle) >= 0.8);
+        if (isSimilar) {
+          similarTitles.push(newTitle);
+        } else {
+          uniqueTitles.push(newTitle);
+        }
+      });
+
+      let resultContainer = document.getElementById("comparison-results");
+      resultContainer.innerHTML = "<h2>Resultados de la Comparación</h2>";
+
+      if (similarTitles.length > 0) {
+        let similarHTML = "<h3>❌ Títulos repetidos o similares:</h3><ul>";
+        similarTitles.forEach(title => similarHTML += `<li>${title}</li>`);
+        similarHTML += "</ul>";
+        resultContainer.innerHTML += similarHTML;
+      } else {
+        resultContainer.innerHTML += "<p>✅ No hay títulos repetidos.</p>";
+      }
+
+      if (uniqueTitles.length > 0) {
+        let uniqueHTML = "<h3>✅ Títulos que puedes usar:</h3><ul>";
+        uniqueTitles.forEach(title => uniqueHTML += `<li>${title}</li>`);
+        uniqueHTML += "</ul>";
+        resultContainer.innerHTML += uniqueHTML;
+      } else {
+        resultContainer.innerHTML += "<p>❌ No hay títulos nuevos utilizables.</p>";
+      }
+    }
+
+    function similarity(s1, s2) {
+      let longer = s1.length > s2.length ? s1 : s2;
+      let shorter = s1.length > s2.length ? s2 : s1;
+      let longerLength = longer.length;
+      if (longerLength === 0) return 1.0;
+      return (longerLength - editDistance(longer, shorter)) / parseFloat(longerLength);
+    }
+
+    function editDistance(s1, s2) {
+      let costs = [];
+      for (let i = 0; i <= s1.length; i++) {
+        let lastValue = i;
+        for (let j = 0; j <= s2.length; j++) {
+          if (i === 0) {
+            costs[j] = j;
+          } else {
+            if (j > 0) {
+              let newValue = costs[j - 1];
+              if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
+                newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+              }
+              costs[j - 1] = lastValue;
+              lastValue = newValue;
+            }
+          }
+        }
+        if (i > 0) costs[s2.length] = lastValue;
+      }
+      return costs[s2.length];
+    }
   </script>
 </head>
 <body onload="initClient()">
-  <h1>Listar Todos los Títulos de Publicaciones en Blogger</h1>
+  <h1>Listar y Comparar Títulos en Blogger</h1>
   <p id="session-status">Cargando estado de sesión...</p>
   <button id="auth-button" onclick="handleAuthClick()" style="display:none;">Iniciar sesión con Google</button>
   <button id="fetch-titles-button" onclick="fetchAllPostTitles()" style="display:none;">Obtener Todos los Títulos</button>
   <button onclick="logout()">Cerrar Sesión</button>
+
+  <h2>Comparar Nuevos Títulos</h2>
+  <textarea id="new-titles" rows="5" cols="50" placeholder="Ingresa títulos separados por coma"></textarea>
+  <br>
+  <button onclick="compareTitles()">Comparar</button>
+
   <div id="titles-container"></div>
+  <div id="comparison-results"></div>
 </body>
 </html>
+```
+
+Este código compara los nuevos títulos con los existentes y muestra cuáles son repetidos o similares al 80%. ¡Prueba y dime si necesitas ajustes!
