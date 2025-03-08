@@ -67,6 +67,7 @@
       existingTitles = [];
       updateSessionStatus();
       document.getElementById("titles-container").innerHTML = "";
+      document.getElementById("comparison-results").innerHTML = "";
     }
 
     async function fetchAllPostTitles() {
@@ -207,12 +208,13 @@
   <button id="fetch-titles-button" onclick="fetchAllPostTitles()" style="display:none;">Obtener Todos los Títulos</button>
   <button onclick="logout()">Cerrar Sesión</button>
 
+  <div id="comparison-results"></div>
+
   <h2>Comparar Nuevos Títulos</h2>
   <textarea id="new-titles" rows="5" cols="50" placeholder="Ingresa títulos separados por coma"></textarea>
   <br>
   <button onclick="compareTitles()">Comparar</button>
 
   <div id="titles-container"></div>
-  <div id="comparison-results"></div>
 </body>
 </html>
