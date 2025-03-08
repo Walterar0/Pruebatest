@@ -445,7 +445,13 @@
             published: scheduledTime 
           })
         })
-        .then(response => response.json())
+        .then(response => {
+          if (!response.ok) {
+            console.error("Error en la respuesta del servidor:", response.status, response.statusText);
+            return response.text().then(text => { throw new Error(text) });
+          }
+          return response.json();
+        })
         .then(data => {
           if (data.error) {
             alert("Error al publicar: " + JSON.stringify(data.error));
