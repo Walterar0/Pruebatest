@@ -3,19 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Publicación Múltiple en Blogger</title>
+  <title>Listar y Comparar Títulos en Blogger</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     const CLIENT_ID = "338010031407-a0qku90nm9atgjsgirdg9i40av85ptbn.apps.googleusercontent.com";
+    const API_KEY = "AIzaSyBkROi9aAkTcWaZwMa05RG7dFPbwdrZIok";
     const BLOG_ID = "6423620772115300042";
-    const SCOPES = "https://www.googleapis.com/auth/blogger";
+    const SCOPES = "https://www.googleapis.com/auth/blogger.readonly";
     
-    let accessToken = null;
+    let accessToken = localStorage.getItem("accessToken") || null;
     let tokenClient;
-    let publishedTitles = new Set();
+    let existingTitles = [];
+    let titlesLoaded = false;
 
     function initClient() {
-      document.getElementById('status').textContent = "No has iniciado sesión";
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
@@ -25,436 +26,195 @@
             return;
           }
           accessToken = response.access_token;
-          document.getElementById('auth-button').style.display = "none";
-          document.getElementById('status').textContent = "Ya iniciaste sesión";
-          document.getElementById('post-button').style.display = "inline";
+          localStorage.setItem("accessToken", accessToken);
+          updateSessionStatus();
+          fetchAllPostTitles();
         }
       });
-      document.getElementById('auth-button').disabled = false;
-      addTextArea();
+
+      updateSessionStatus();
+      if (accessToken) {
+        fetchAllPostTitles();
+      }
+    }
+
+    function updateSessionStatus() {
+      let statusElement = document.getElementById("session-status");
+      let authButton = document.getElementById("auth-button");
+      let fetchButton = document.getElementById("fetch-titles-button");
+
+      if (accessToken) {
+        fetchButton.style.display = "inline-block";
+        authButton.style.display = "none";
+        statusElement.textContent = "✅ Ya iniciaste sesión";
+        statusElement.style.color = "green";
+      } else {
+        fetchButton.style.display = "none";
+        authButton.style.display = "inline-block";
+        statusElement.textContent = "❌ No has iniciado sesión";
+        statusElement.style.color = "red";
+      }
     }
 
     function handleAuthClick() {
       tokenClient.requestAccessToken();
     }
 
-    function addTextArea() {
-      const container = document.getElementById("post-container");
-      const div = document.createElement("div");
-      div.classList.add("post-entry");
-      div.innerHTML = `
-        <textarea class="post-content" rows="8" cols="80" placeholder="Pegar código aquí"></textarea>
-        <button onclick="pasteContent(this)">Pegar</button>
-        <button onclick="processCode(this)">Procesar</button>
-        <button onclick="removeEntry(this)">Eliminar</button>
-        <p><strong>Título:</strong> <span class="titulo"></span></p>
-        <p><strong>Fecha:</strong> <span class="fecha"></span></p>
-        <p><strong>Etiquetas:</strong> <span class="etiquetas"></span></p>
-        <p><strong>Contenido:</strong> <span class="content-preview"></span></p>
-        <div class="content-full" style="display:none;"></div>
-        <p class="status-msg"></p>
-        <hr>
-      `;
-      container.appendChild(div);
+    function logout() {
+      localStorage.removeItem("accessToken");
+      accessToken = null;
+      titlesLoaded = false;
+      existingTitles = [];
+      updateSessionStatus();
+      document.getElementById("titles-container").innerHTML = "";
+      document.getElementById("comparison-results").innerHTML = "";
     }
 
-    function removeEntry(button) {
-      button.parentElement.remove();
-    }
-
-    async function pasteContent(button) {
-      try {
-        const text = await navigator.clipboard.readText();
-        let container = button.parentElement;
-        let textarea = container.querySelector(".post-content");
-        textarea.value = text;
-        processJSCode(container);
-        container.querySelector(".status-msg").textContent = "Código pegado y procesado";
-      } catch (err) {
-        alert("Error al pegar: " + err.message);
-      }
-    }
-
-    function processCode(button) {
-      let container = button.parentElement;
-      processJSCode(container);
-      container.querySelector(".status-msg").textContent = "Código procesado";
-    }
-
-    function processJSCode(container) {
-      let code = container.querySelector(".post-content").value;
-      
-      // Preprocesamiento para manejar <br> como saltos de línea reales
-      code = code.replace(/<br>/g, "\n");
-      
-      let extractedPost = {
-        title: "Sin título",
-        content: "Sin contenido",
-        published: new Date().toISOString(),
-        labels: []
-      };
-      
-      try {
-        // PASO 1: Extraer la fecha de publishDate (prioridad máxima)
-        let customDate = null;
-        let publishDateMatch = code.match(/let\s+publishDate\s*=\s*new\s+Date\(['"](.*?)['"]\)/);
-        if (publishDateMatch && publishDateMatch[1]) {
-          try {
-            customDate = new Date(publishDateMatch[1]);
-            if (!isNaN(customDate.getTime())) {
-              console.log("✓ Fecha encontrada en publishDate:", customDate.toISOString());
-              extractedPost.published = customDate.toISOString();
-            }
-          } catch(e) {
-            console.error("Error al procesar fecha en publishDate:", e);
-          }
-        }
-        
-        // PASO 2: Buscar scheduledTime como respaldo
-        if (!customDate) {
-          let scheduledTimeMatch = code.match(/let\s+scheduledTime\s*=\s*[\w.]+\.toISOString\(\)/);
-          if (scheduledTimeMatch) {
-            // Intentar buscar una fecha ISO en el texto
-            let isoDateMatch = code.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-            if (isoDateMatch) {
-              try {
-                customDate = new Date(isoDateMatch[0]);
-                if (!isNaN(customDate.getTime())) {
-                  console.log("✓ Fecha encontrada en ISO string:", customDate.toISOString());
-                  extractedPost.published = customDate.toISOString();
-                }
-              } catch(e) {
-                console.error("Error al procesar fecha ISO:", e);
-              }
-            }
-          }
-        }
-        
-        // PASO 3: Buscar objeto de artículo completo con un enfoque más flexible
-        // Buscar primero la variable que contiene el objeto del post
-        let postVarMatch = code.match(/const\s+(\w+)\s*=\s*\{/);
-        let postVarName = postVarMatch ? postVarMatch[1] : null;
-        
-        if (postVarName) {
-          console.log("✓ Variable de post encontrada:", postVarName);
-          
-          // Extraer título con un patrón más flexible
-          let titleMatch = code.match(/["']title["']\s*:\s*["']([^"']+)["']/);
-          if (titleMatch && titleMatch[1]) {
-            extractedPost.title = titleMatch[1];
-            console.log("✓ Título encontrado:", extractedPost.title);
-          }
-          
-          // Extraer contenido - manejo especial para HTML
-          let contentStart = code.indexOf('"content": "');
-          if (contentStart === -1) contentStart = code.indexOf("'content': '");
-          if (contentStart === -1) contentStart = code.indexOf('"content": `');
-          
-          if (contentStart !== -1) {
-            // Determinar qué tipo de comilla se usa
-            let quoteChar = code.charAt(contentStart + 11);
-            let endQuoteChar = quoteChar;
-            if (quoteChar === '`') endQuoteChar = '`';
-            
-            contentStart += 12; // Longitud de '"content": "' o variantes
-            
-            // Buscar el cierre de comilla correspondiente teniendo en cuenta escapes
-            let contentEnd = -1;
-            let pos = contentStart;
-            let inEscape = false;
-            let nestLevel = 0;
-            
-            while (pos < code.length) {
-              let char = code.charAt(pos);
-              
-              if (char === '\\') {
-                inEscape = !inEscape;
-              } else if (char === endQuoteChar && !inEscape) {
-                // Para template literals, debemos asegurarnos de que no estamos dentro de ${}
-                if (endQuoteChar === '`' && nestLevel === 0) {
-                  contentEnd = pos;
-                  break;
-                } else if (endQuoteChar !== '`') {
-                  contentEnd = pos;
-                  break;
-                }
-              } else if (endQuoteChar === '`' && char === '{' && code.charAt(pos-1) === '$' && !inEscape) {
-                nestLevel++;
-              } else if (endQuoteChar === '`' && char === '}' && !inEscape) {
-                nestLevel--;
-              } else {
-                inEscape = false;
-              }
-              pos++;
-            }
-            
-            if (contentEnd !== -1) {
-              let content = code.substring(contentStart, contentEnd)
-                .replace(/\\"/g, '"')
-                .replace(/\\'/g, "'")
-                .replace(/\\n/g, "\n")
-                .replace(/\\t/g, "\t")
-                .replace(/\\\\/g, "\\");
-              
-              extractedPost.content = content;
-              console.log("✓ Contenido encontrado (longitud):", content.length);
-            }
-          }
-          
-          // Extraer fecha publicada del objeto (si no se encontró en publishDate)
-          if (!customDate) {
-            let publishedMatch = code.match(/["']published["']\s*:\s*["']([^"']+)["']/);
-            if (publishedMatch && publishedMatch[1]) {
-              try {
-                let objDate = new Date(publishedMatch[1]);
-                if (!isNaN(objDate.getTime())) {
-                  extractedPost.published = objDate.toISOString();
-                  console.log("✓ Fecha encontrada en published:", extractedPost.published);
-                }
-              } catch(e) {
-                console.error("Error al procesar fecha en published:", e);
-              }
-            }
-          }
-          
-          // Extraer etiquetas con patrón más flexible
-          let labelsPattern = /["']labels["']\s*:\s*\[([\s\S]*?)\]/;
-          let labelsMatch = code.match(labelsPattern);
-          
-          if (labelsMatch && labelsMatch[1]) {
-            let labelsText = labelsMatch[1];
-            let labelMatches = labelsText.match(/["']([^"']+)["']/g);
-            
-            if (labelMatches && labelMatches.length > 0) {
-              extractedPost.labels = labelMatches.map(label => 
-                label.replace(/["']/g, '').trim()
-              );
-              console.log("✓ Etiquetas encontradas:", extractedPost.labels);
-            }
-          }
-        }
-        
-        // PASO 4: Buscar postLabels como alternativa para etiquetas si no se encontraron
-        if (extractedPost.labels.length === 0) {
-          let postLabelsMatch = code.match(/const\s+postLabels\s*=\s*\[([\s\S]*?)\];/);
-          
-          if (postLabelsMatch && postLabelsMatch[1]) {
-            let labelsText = postLabelsMatch[1];
-            let labelMatches = labelsText.match(/["']([^"']+)["']/g);
-            
-            if (labelMatches && labelMatches.length > 0) {
-              extractedPost.labels = labelMatches.map(label => 
-                label.replace(/["'<p>\\]/g, "").trim()
-              );
-              console.log("✓ Etiquetas encontradas en postLabels:", extractedPost.labels);
-            }
-          }
-        }
-        
-      } catch (e) {
-        console.error("Error en procesamiento:", e);
-        container.querySelector(".status-msg").textContent = "Error al procesar: " + e.message;
-      }
-
-      // Actualizar la interfaz con la información extraída
-      container.querySelector(".titulo").textContent = extractedPost.title;
-      container.querySelector(".fecha").textContent = extractedPost.published;
-      container.querySelector(".etiquetas").textContent = extractedPost.labels.join(", ");
-      
-      // Guardar el contenido completo oculto
-      container.querySelector(".content-full").innerHTML = extractedPost.content;
-      
-      // Mostrar vista previa del contenido (primeros 200 caracteres)
-      let contentPreview = extractedPost.content;
-      if (contentPreview.length > 200) {
-        contentPreview = contentPreview.substring(0, 200) + "...";
-      }
-      container.querySelector(".content-preview").innerHTML = contentPreview;
-      
-      // Añadir botón para ver contenido completo si no existe
-      if (!container.querySelector(".toggle-content")) {
-        const toggleBtn = document.createElement("button");
-        toggleBtn.className = "toggle-content";
-        toggleBtn.textContent = "Ver contenido completo";
-        toggleBtn.onclick = function() {
-          const contentEl = container.querySelector(".content-full");
-          const previewEl = container.querySelector(".content-preview").parentElement;
-          
-          if (contentEl.style.display === "none") {
-            contentEl.style.display = "block";
-            previewEl.style.display = "none";
-            this.textContent = "Ver vista previa";
-          } else {
-            contentEl.style.display = "none";
-            previewEl.style.display = "block";
-            this.textContent = "Ver contenido completo";
-          }
-        };
-        container.insertBefore(toggleBtn, container.querySelector(".status-msg"));
-      }
-    }
-
-    function publishPosts() {
+    async function fetchAllPostTitles() {
       if (!accessToken) {
-        document.getElementById('status').textContent = "Primero debes iniciar sesión";
         alert("Debes autenticarte primero.");
         return;
       }
 
-      document.getElementById('status').textContent = "Publicando entradas...";
-      let totalPublished = 0;
-      let promesas = [];
+      let titlesContainer = document.getElementById("titles-container");
+      titlesContainer.innerHTML = "<h2>Cargando títulos...</h2>";
+      existingTitles = [];
+      let nextPageToken = null;
 
-      document.querySelectorAll(".post-entry").forEach(entry => {
-        let title = entry.querySelector(".titulo").textContent || "Sin título";
-        let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
-        let labels = entry.querySelector(".etiquetas").textContent.split(", ").filter(label => label.trim() !== "") || [];
-        let content = entry.querySelector(".content-full").innerHTML || "Sin contenido";
-
-        if (publishedTitles.has(title)) {
-          alert(`El post "${title}" ya fue publicado.`);
-          return;
-        }
-
-        // Asegurar que la fecha es válida
-        let scheduledTime = rawDate;
-        try {
-          let localDate = new Date(rawDate);
-          if (!isNaN(localDate.getTime())) {
-            scheduledTime = localDate.toISOString();
+      try {
+        do {
+          let url = `https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts?fields=items(title),nextPageToken&maxResults=50`;
+          if (nextPageToken) {
+            url += `&pageToken=${nextPageToken}`;
           }
-        } catch (e) {
-          console.error("Error al procesar fecha:", e);
-          scheduledTime = new Date().toISOString();
-        }
 
-        let promesa = fetch(`https://www.googleapis.com/blogger/v3/blogs/${BLOG_ID}/posts`, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${accessToken}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            kind: "blogger#post",
-            title,
-            content,
-            labels,
-            status: "SCHEDULED",
-            published: scheduledTime 
-          })
-        })
-        .then(response => response.json())
-        .then(data => {
+          let response = await fetch(url, {
+            headers: { "Authorization": `Bearer ${accessToken}` }
+          });
+
+          let data = await response.json();
           if (data.error) {
-            alert("Error al publicar: " + JSON.stringify(data.error));
-            return false;
-          } else {
-            totalPublished++;
-            publishedTitles.add(title);
-            entry.querySelector(".status-msg").textContent = "✓ Publicado correctamente";
-            entry.querySelector(".status-msg").style.color = "#34a853";
-            return true;
+            alert("Error al obtener títulos: " + JSON.stringify(data.error));
+            return;
           }
-        })
-        .catch(err => {
-          alert("Error en la solicitud: " + err.message);
-          return false;
-        });
-        
-        promesas.push(promesa);
+
+          if (data.items) {
+            existingTitles.push(...data.items.map(post => post.title.toLowerCase()));
+          }
+
+          nextPageToken = data.nextPageToken || null;
+        } while (nextPageToken);
+
+        titlesContainer.innerHTML = "<h2>Títulos existentes en el blog</h2>";
+        if (existingTitles.length > 0) {
+          existingTitles.forEach(title => {
+            let p = document.createElement("p");
+            p.textContent = title;
+            titlesContainer.appendChild(p);
+          });
+        } else {
+          titlesContainer.innerHTML += "<p>No hay publicaciones.</p>";
+        }
+
+        titlesLoaded = true;
+      } catch (err) {
+        alert("Error en la solicitud: " + err.message);
+      }
+    }
+
+    function compareTitles() {
+      if (!titlesLoaded) {
+        alert("Primero debes iniciar sesión y cargar los títulos del blog.");
+        return;
+      }
+
+      let newTitlesText = document.getElementById("new-titles").value;
+      if (!newTitlesText.trim()) {
+        alert("Introduce títulos para comparar.");
+        return;
+      }
+
+      let newTitles = newTitlesText.split(",").map(t => t.trim().toLowerCase());
+      let similarTitles = [];
+      let uniqueTitles = [];
+
+      newTitles.forEach(newTitle => {
+        let isSimilar = existingTitles.some(existingTitle => similarity(existingTitle, newTitle) >= 0.8);
+        if (isSimilar) {
+          similarTitles.push(newTitle);
+        } else {
+          uniqueTitles.push(newTitle);
+        }
       });
 
-      Promise.all(promesas).then(resultados => {
-        const exitosos = resultados.filter(Boolean).length;
-        document.getElementById("status").textContent = `Fueron publicadas ${exitosos} entradas.`;
-      });
+      let resultContainer = document.getElementById("comparison-results");
+      resultContainer.innerHTML = "<h2>Resultados de la Comparación</h2>";
+
+      if (similarTitles.length > 0) {
+        let similarHTML = "<h3>❌ Títulos repetidos o similares:</h3><ul>";
+        similarTitles.forEach(title => similarHTML += `<li>${title}</li>`);
+        similarHTML += "</ul>";
+        resultContainer.innerHTML += similarHTML;
+      } else {
+        resultContainer.innerHTML += "<p>✅ No hay títulos repetidos.</p>";
+      }
+
+      if (uniqueTitles.length > 0) {
+        let uniqueHTML = "<h3>✅ Títulos que puedes usar:</h3><ul>";
+        uniqueTitles.forEach(title => uniqueHTML += `<li>${title}</li>`);
+        uniqueHTML += "</ul>";
+        resultContainer.innerHTML += uniqueHTML;
+      } else {
+        resultContainer.innerHTML += "<p>❌ No hay títulos nuevos utilizables.</p>";
+      }
+    }
+
+    function similarity(s1, s2) {
+      let longer = s1.length > s2.length ? s1 : s2;
+      let shorter = s1.length > s2.length ? s2 : s1;
+      let longerLength = longer.length;
+      if (longerLength === 0) return 1.0;
+      return (longerLength - editDistance(longer, shorter)) / parseFloat(longerLength);
+    }
+
+    function editDistance(s1, s2) {
+      let costs = [];
+      for (let i = 0; i <= s1.length; i++) {
+        let lastValue = i;
+        for (let j = 0; j <= s2.length; j++) {
+          if (i === 0) {
+            costs[j] = j;
+          } else {
+            if (j > 0) {
+              let newValue = costs[j - 1];
+              if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
+                newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+              }
+              costs[j - 1] = lastValue;
+              lastValue = newValue;
+            }
+          }
+        }
+        if (i > 0) costs[s2.length] = lastValue;
+      }
+      return costs[s2.length];
     }
   </script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      line-height: 1.6;
-      color: #333;
-      background-color: #f7f9fc;
-    }
-    .post-entry {
-      margin-bottom: 20px;
-      padding: 15px;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-      background-color: white;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .post-content {
-      width: 100%;
-      margin-bottom: 10px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 8px;
-      font-family: monospace;
-      white-space: pre-wrap;
-    }
-    button {
-      margin: 5px;
-      padding: 8px 12px;
-      background-color: #4285f4;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background-color 0.3s;
-    }
-    button:hover {
-      background-color: #3367d6;
-    }
-    .content-full, .content-preview {
-      max-height: 200px;
-      overflow-y: auto;
-      border: 1px solid #eee;
-      padding: 10px;
-      margin-top: 5px;
-      background-color: #f9f9f9;
-      border-radius: 4px;
-    }
-    #status {
-      font-weight: bold;
-      margin: 10px 0;
-      padding: 10px;
-      background-color: #e8f0fe;
-      border-radius: 4px;
-      text-align: center;
-    }
-    h1 {
-      color: #4285f4;
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    .toggle-content {
-      background-color: #34a853;
-    }
-    .toggle-content:hover {
-      background-color: #2e8b57;
-    }
-    .fecha {
-      font-family: monospace;
-      background-color: #f0f8ff;
-      padding: 2px 5px;
-      border-radius: 3px;
-    }
-  </style>
 </head>
 <body onload="initClient()">
-  <h1>Publicaciones Múltiples en Blogger</h1>
-  <p id="status"></p>
-  <div style="text-align: center; margin-bottom: 20px;">
-    <button id="auth-button" onclick="handleAuthClick()" disabled>Iniciar sesión con Google</button>
-    <button id="add-post" onclick="addTextArea()">Añadir Publicación</button>
-    <button id="post-button" onclick="publishPosts()" style="display: none;">Publicar Todas</button>
-  </div>
-  <div id="post-container"></div>
-  <footer style="text-align: center; margin-top: 30px; color: #666; font-size: 0.9em;">
-    Herramienta de publicación múltiple para Blogger
-  </footer>
+  <h1>Listar y Comparar Títulos en Blogger</h1>
+  <p id="session-status">Cargando estado de sesión...</p>
+  <button id="auth-button" onclick="handleAuthClick()" style="display:none;">Iniciar sesión con Google</button>
+  <button id="fetch-titles-button" onclick="fetchAllPostTitles()" style="display:none;">Obtener Todos los Títulos</button>
+  <button onclick="logout()">Cerrar Sesión</button>
+
+  <h2>Comparar Nuevos Títulos</h2>
+  <textarea id="new-titles" rows="5" cols="50" placeholder="Ingresa títulos separados por coma"></textarea>
+  <br>
+  <button onclick="compareTitles()">Comparar</button>
+
+  <div id="comparison-results"></div>
+  
+  <div id="titles-container"></div>
 </body>
 </html>
