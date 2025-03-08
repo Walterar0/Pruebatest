@@ -51,7 +51,7 @@
         <p><strong>Fecha:</strong> <span class="fecha"></span></p>
         <p><strong>Etiquetas:</strong> <span class="etiquetas"></span></p>
         <p><strong>Contenido:</strong> <span class="content-preview"></span></p>
-        <div class="content" style="display:none;"></div>
+        <div class="content-full" style="display:none;"></div>
         <p class="status-msg"></p>
         <hr>
       `;
@@ -262,7 +262,7 @@
       container.querySelector(".etiquetas").textContent = extractedPost.labels.join(", ");
       
       // Guardar el contenido completo oculto
-      container.querySelector(".content").innerHTML = extractedPost.content;
+      container.querySelector(".content-full").innerHTML = extractedPost.content;
       
       // Mostrar vista previa del contenido (primeros 200 caracteres)
       let contentPreview = extractedPost.content;
@@ -277,7 +277,7 @@
         toggleBtn.className = "toggle-content";
         toggleBtn.textContent = "Ver contenido completo";
         toggleBtn.onclick = function() {
-          const contentEl = container.querySelector(".content");
+          const contentEl = container.querySelector(".content-full");
           const previewEl = container.querySelector(".content-preview").parentElement;
           
           if (contentEl.style.display === "none") {
@@ -309,7 +309,7 @@
         let title = entry.querySelector(".titulo").textContent || "Sin título";
         let rawDate = entry.querySelector(".fecha").textContent || new Date().toISOString();
         let labels = entry.querySelector(".etiquetas").textContent.split(", ").filter(label => label.trim() !== "") || [];
-        let content = entry.querySelector(".content").innerHTML || "Sin contenido";
+        let content = entry.querySelector(".content-full").innerHTML || "Sin contenido";
 
         if (publishedTitles.has(title)) {
           alert(`El post "${title}" ya fue publicado.`);
@@ -408,7 +408,7 @@
     button:hover {
       background-color: #3367d6;
     }
-    .content, .content-preview {
+    .content-full, .content-preview {
       max-height: 200px;
       overflow-y: auto;
       border: 1px solid #eee;
