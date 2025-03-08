@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -15,6 +14,7 @@
     let accessToken = localStorage.getItem("accessToken") || null;
     let tokenClient;
     let existingTitles = [];
+    let titlesLoaded = false;
 
     function initClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
@@ -63,6 +63,8 @@
     function logout() {
       localStorage.removeItem("accessToken");
       accessToken = null;
+      titlesLoaded = false;
+      existingTitles = [];
       updateSessionStatus();
       document.getElementById("titles-container").innerHTML = "";
     }
@@ -112,12 +114,19 @@
         } else {
           titlesContainer.innerHTML += "<p>No hay publicaciones.</p>";
         }
+
+        titlesLoaded = true;
       } catch (err) {
         alert("Error en la solicitud: " + err.message);
       }
     }
 
     function compareTitles() {
+      if (!titlesLoaded) {
+        alert("Primero debes iniciar sesión y cargar los títulos del blog.");
+        return;
+      }
+
       let newTitlesText = document.getElementById("new-titles").value;
       if (!newTitlesText.trim()) {
         alert("Introduce títulos para comparar.");
@@ -207,5 +216,3 @@
   <div id="comparison-results"></div>
 </body>
 </html>
-
-
